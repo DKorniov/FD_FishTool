@@ -1,5 +1,6 @@
 {
     "export_path": "C:/Users/kornilov-d/Downloads",
+    "animation_data": "C:/Users/kornilov-d/Documents/maya/2022/scripts/FD_FishTool/data/animation.txt",
     "bone_map_file": "C:/Users/kornilov-d/Documents/maya/2022/scripts/FD_FishTool/data/bone_map.json",
-    "animation_data": "C:/Users/kornilov-d/Documents/maya/2022/scripts/FD_FishTool/data/animation.txt"
+    "legacy_exporter_path": "C:/Users/kornilov-d/Documents/maya/scripts/playrix"
 }
