@@ -1,0 +1,10 @@
+{
+    "Head_M": "head",
+    "Eye_R": "right_eye",
+    "Eye_L": "left_eye",
+    "BackA1_M": "body1",
+    "BackB_M": "body2",
+    "BackF_M": "body3",
+    "Tail_M": "tail1",
+    "Root_M": "root_bone"
+}
