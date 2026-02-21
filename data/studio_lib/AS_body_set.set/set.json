@@ -1,0 +1,34 @@
+{
+  "metadata": {
+    "ctime": "1735642636", 
+    "version": "1.0.0", 
+    "references": [], 
+    "user": "kornilov-d",      
+    "mayaVersion": "2022", 
+    "description": ""
+  }
+,
+  "objects": {
+    "IKSpine1_M": {}, 
+    "FKBodyFinLwrA_L": {}, 
+    "FKBackB_M": {}, 
+    "FKBackB1_M": {}, 
+    "RootX_M": {}, 
+    "FKBackA1_M": {}, 
+    "FKIKSpine_M": {}, 
+    "FKTailFinUpper_M": {}, 
+    "FKTailFinLwr_M": {}, 
+    "FKBodyFinSide1_R": {}, 
+    "FKTail_M": {}, 
+    "FKSpineFinA_M": {}, 
+    "FKBackF_M": {}, 
+    "FKBodyFinSide1_L": {}, 
+    "FKBackA2_M": {}, 
+    "IKSpine2_M": {}, 
+    "FKBackB2_M": {}, 
+    "Main": {}, 
+    "FKBodyFinLwrA_R": {}, 
+    "IKSpine3_M": {}, 
+    "FKHead_M": {}
+  }
+}

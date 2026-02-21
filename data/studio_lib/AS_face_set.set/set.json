@@ -1,0 +1,32 @@
+{
+  "metadata": {
+    "ctime": "1735642655", 
+    "version": "1.0.0", 
+    "references": [], 
+    "user": "kornilov-d",      
+    "mayaVersion": "2022", 
+    "description": ""
+  }
+,
+  "objects": {
+    "Sync": {}, 
+    "FKBrow1_R": {}, 
+    "gui_teeth": {}, 
+    "L_Upp_EyeLid": {}, 
+    "R_Lwr_EyeLid": {}, 
+    "Jaw": {}, 
+    "FKEye_L": {}, 
+    "FKBrow2_L": {}, 
+    "Emote": {}, 
+    "AimEye_M": {}, 
+    "AimEye_L": {}, 
+    "FKBrow1_L": {}, 
+    "AimEye_R": {}, 
+    "Upr_Lip": {}, 
+    "FKEye_R": {}, 
+    "Lwr_Lip": {}, 
+    "FKBrow2_R": {}, 
+    "L_Lwr_EyeLid": {}, 
+    "R_Upp_EyeLid": {}
+  }
+}
