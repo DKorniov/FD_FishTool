@@ -1,0 +1,10 @@
+{
+  "body1": ["body_1", "bod1", "bdy1"],
+  "body2": ["body_2", "bod2", "bdy2"],
+  "body3": ["body_3", "bod3", "bdy3"],
+  "body4": ["body_4", "bod4", "bdy4"],
+  "left_side_plv1":  ["left_side_plv_1", "left_side_fin1"],
+  "right_side_plv1": ["right_side_plv_1", "right_side_fin1"],
+  "up_fin_front1": ["up_fin_fr1", "up_front_fin1"],
+  "up_fin_front3": ["up_fin_fr3", "up_front_fin3"]
+}

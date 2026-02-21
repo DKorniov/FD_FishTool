@@ -1,138 +1,133 @@
+# -*- coding: utf-8 -*-
 from PySide2 import QtWidgets, QtCore, QtGui
 import maya.cmds as cmds
-import maya.mel as mel
-import os
 
+# Импорты модулей core
 from FD_FishTool.core.meta_exporter import BoneNamePreparing
-from FD_FishTool.core.anim_handler import AnimSyncManager
+from FD_FishTool.core.validator import FishValidator
 
 class FD_MainWindow(QtWidgets.QMainWindow):
     def __init__(self, config, parent=None):
+        """
+        Исправлено: теперь принимает 'config', как того требует main_app.py.
+        config здесь — это словарь (bone_map.json).
+        """
         super(FD_MainWindow, self).__init__(parent)
-        self.cfg = config
-        self.setWindowTitle("FD_FishTool v2.0 | Final Sync")
-        self.setMinimumSize(450, 650)
-        self.init_ui()
-
-    def init_ui(self):
-        central = QtWidgets.QWidget()
-        self.setCentralWidget(central)
-        layout = QtWidgets.QVBoxLayout(central)
-
-        self.tabs = QtWidgets.QTabWidget()
-        layout.addWidget(self.tabs)
-
-        # Регистрация всех вкладок
-        self.tabs.addTab(self.ui_rigging(), "Rigging")
-        self.tabs.addTab(self.ui_animation(), "Animation")
-        self.tabs.addTab(self.ui_export(), "Export")
-
-        # Кнопка настроек
-        btn_settings = QtWidgets.QPushButton("⚙ Настройки Пайплайна")
-        btn_settings.setMinimumHeight(40)
-        btn_settings.clicked.connect(self.open_settings)
-        layout.addWidget(btn_settings)
-
-    def ui_rigging(self):
-        tab = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(tab)
-
-        btn_spring = QtWidgets.QPushButton("🚀 ПРИМЕНИТЬ SPRING MAGIC")
-        btn_spring.setMinimumHeight(60)
-        btn_spring.setStyleSheet("background-color: #3d5a6b; font-weight: bold; font-size: 13px;")
-        btn_spring.clicked.connect(self.run_spring_magic)
-        layout.addWidget(btn_spring)
-
-        layout.addSpacing(25)
-        ai_group = QtWidgets.QGroupBox("AI Assistant")
-        ai_lay = QtWidgets.QVBoxLayout(ai_group)
-        self.ai_input = QtWidgets.QLineEdit()
-        self.ai_input.setPlaceholderText("Напр: 'Создай риг для плавников'...")
-        ai_lay.addWidget(self.ai_input)
-        btn_ai = QtWidgets.QPushButton("✨ АНАЛИЗ И ЗАПУСК")
-        btn_ai.clicked.connect(lambda: print(f"AI Brain: Analyzing {self.ai_input.text()}"))
-        ai_lay.addWidget(btn_ai)
-        layout.addWidget(ai_group)
-
-        layout.addStretch()
-        return tab
-
-    def ui_animation(self):
-        tab = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(tab)
         
-        self.anim_tree = QtWidgets.QTreeWidget()
-        self.anim_tree.setHeaderLabels(["Статус", "Клип", "Эталон (инфо)", "В Сцене (инфо)"])
-        self.anim_tree.itemClicked.connect(self.on_clip_click)
-        layout.addWidget(self.anim_tree)
+        # Сохраняем словарь конфигурации
+        self.cfg = config 
+        self.validator = FishValidator()
+        
+        self.setWindowTitle("FD_FishTool - Pipeline Master")
+        self.setMinimumSize(400, 600)
+        
+        # Основной виджет и таб-система
+        self.central_widget = QtWidgets.QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.main_layout = QtWidgets.QVBoxLayout(self.central_widget)
+        
+        self.tabs = QtWidgets.QTabWidget()
+        self.main_layout.addWidget(self.tabs)
+        
+        # Инициализация вкладок
+        self.init_rigging_tab()
+        self.init_animation_tab()
+        self.init_export_tab()
+        
+        print("FD_FishTool: UI Loaded successfully.")
 
-        btn_sync = QtWidgets.QPushButton("🔄 СИНХРОНИЗИРОВАТЬ СПИСОК")
-        btn_sync.setMinimumHeight(50)
-        btn_sync.setStyleSheet("font-weight: bold;")
-        btn_sync.clicked.connect(self.refresh_anim_list)
-        layout.addWidget(btn_sync)
-        return tab
+    def init_rigging_tab(self):
+        self.rig_tab = QtWidgets.QWidget()
+        self.tabs.addTab(self.rig_tab, "Rigging")
+        layout = QtWidgets.QVBoxLayout(self.rig_tab)
+        # Сюда можно вставить старый код кнопок риггинга
+        layout.addWidget(QtWidgets.QLabel("Rigging Tools Space"))
 
-    def ui_export(self):
-        tab = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(tab)
-        btn = QtWidgets.QPushButton("🔄 ПЕРЕКЛЮЧИТЬ РЕЖИМ ЭКСПОРТА")
-        btn.setMinimumHeight(120)
-        btn.setStyleSheet("background-color: #4e7a4e; font-size: 16px; font-weight: bold;")
-        btn.clicked.connect(self.run_export_toggle)
-        layout.addWidget(btn)
-        layout.addStretch()
-        return tab
+    def init_animation_tab(self):
+        self.anim_tab = QtWidgets.QWidget()
+        self.tabs.addTab(self.anim_tab, "Animation")
+        layout = QtWidgets.QVBoxLayout(self.anim_tab)
+        # Сюда можно вставить старый код кнопок анимации
+        layout.addWidget(QtWidgets.QLabel("Animation Tools Space"))
 
-    # --- ЛОГИКА ---
-    def on_clip_click(self, item, col):
-        # Переключение таймлайна для удобства (даже если кадры не важны для проверки)
-        time_text = item.text(3) if item.text(3) != "MISSING" else item.text(2)
-        if "-" in time_text:
-            try:
-                start, end = [float(x) for x in time_text.split('-')]
-                cmds.playbackOptions(min=start, max=end, animationStartTime=start, animationEndTime=end)
-                cmds.currentTime(start)
-            except: pass
+    def init_export_tab(self):
+        """Вкладка экспорта с валидацией и переключением имен"""
+        self.export_tab = QtWidgets.QWidget()
+        self.tabs.addTab(self.export_tab, "Export")
+        layout = QtWidgets.QVBoxLayout(self.export_tab)
+        
+        # --- Секция Валидации ---
+        val_group = QtWidgets.QGroupBox("Technical Validation")
+        val_layout = QtWidgets.QVBoxLayout(val_group)
+        
+        self.btn_validate = QtWidgets.QPushButton("Run Scene Check")
+        self.btn_validate.setFixedHeight(40)
+        self.btn_validate.clicked.connect(self.run_validation)
+        val_layout.addWidget(self.btn_validate)
+        
+        self.report_tree = QtWidgets.QTreeWidget()
+        self.report_tree.setHeaderLabels(["Status", "Description"])
+        self.report_tree.setColumnWidth(0, 100)
+        val_layout.addWidget(self.report_tree)
+        
+        layout.addWidget(val_group)
+        
+        # --- Секция Экспорта ---
+        exp_group = QtWidgets.QGroupBox("Finalize & Export")
+        exp_layout = QtWidgets.QVBoxLayout(exp_group)
+        
+        self.btn_toggle = QtWidgets.QPushButton("Toggle Rig / Export Naming")
+        self.btn_toggle.setFixedHeight(50)
+        self.btn_toggle.setStyleSheet("background-color: #445566; color: white; font-weight: bold;")
+        self.btn_toggle.clicked.connect(self.run_export_toggle)
+        exp_layout.addWidget(self.btn_toggle)
+        
+        self.btn_fbx = QtWidgets.QPushButton("Export FBX")
+        self.btn_fbx.setFixedHeight(40)
+        self.btn_fbx.setEnabled(False) # Активируется после успешной валидации
+        exp_layout.addWidget(self.btn_fbx)
+        
+        layout.addWidget(exp_group)
 
-    def run_spring_magic(self):
-        if mel.eval('exists "SpringMagic"'):
-            mel.eval("SpringMagic;")
-        else:
-            cmds.warning("Скрипт SpringMagic не найден в путях Maya.")
+    # --- МЕТОДЫ ЛОГИКИ ---
 
-    def refresh_anim_list(self):
-        self.anim_tree.clear()
-        ref_path = self.cfg.load_json("paths.json").get("animation_data")
-        if not ref_path or not os.path.exists(ref_path):
-            cmds.warning("Укажите верный путь к animation.txt в настройках!")
-            return
+    def run_validation(self):
+        """Вызов валидатора и обновление TreeWidget"""
+        self.report_tree.clear()
+        
+        # Получаем детализированный отчет
+        errors, success = self.validator.validate_all()
+        
+        # 1. Сначала выводим успехи (Зеленым) для прозрачности процесса
+        for msg in success:
+            item = QtWidgets.QTreeWidgetItem(["✅ PASS", msg])
+            item.setForeground(0, QtGui.QColor(150, 255, 150))
+            self.report_tree.addTopLevelItem(item)
 
-        manager = AnimSyncManager(ref_path)
-        report = manager.compare()
+        # 2. Выводим ошибки (Красным)
+        for err in errors:
+            item = QtWidgets.QTreeWidgetItem(["❌ ERROR", err])
+            item.setForeground(0, QtGui.QColor(255, 150, 150))
+            self.report_tree.addTopLevelItem(item)
 
-        for d in report:
-            item = QtWidgets.QTreeWidgetItem(self.anim_tree)
-            item.setText(1, d["name"])
-            item.setText(2, d["ref_time"])
-            item.setText(3, d["scene_time"])
-
-            st = d["status"]
-            if st == "OK":
-                item.setText(0, "✅ OK")
-                item.setForeground(0, QtGui.QColor(120, 255, 120))
-            elif st == "MISSING":
-                item.setText(0, "❌ MISS")
-                item.setForeground(0, QtGui.QColor(255, 120, 120))
-            else: # EXTRA
-                item.setText(0, "➕ EXTRA")
-                item.setForeground(0, QtGui.QColor(120, 200, 255))
+        # 3. Управление кнопкой экспорта
+        self.btn_fbx.setEnabled(len(errors) == 0)
+        
+        if errors:
+            QtWidgets.QMessageBox.warning(self, "Validation", f"Найдено {len(errors)} критических ошибок!")
 
     def run_export_toggle(self):
-        bone_map = self.cfg.load_json("bone_map.json")
-        BoneNamePreparing(bone_map).execute()
-
-    def open_settings(self):
-        from FD_FishTool.ui.settings_window import SettingsWindow
-        self.sw = SettingsWindow(self.cfg, parent=self)
-        self.sw.exec_()
+        """Вызов логики переименования"""
+        try:
+            # Т.к. self.cfg уже является словарем (bone_map), передаем его напрямую
+            exporter = BoneNamePreparing(self.cfg)
+            exporter.execute()
+            
+            # Обновляем текст кнопки для наглядности
+            mode = "EXPORT" if exporter.export_toggle else "RIG"
+            self.btn_toggle.setText(f"Naming Mode: {mode} (Click to Switch)")
+            
+            cmds.inViewMessage(amg=f"FD_FishTool: Mode switched to <ud>{mode}</ud>", pos='topCenter', fade=True)
+            
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"Toggle failed: {str(e)}")

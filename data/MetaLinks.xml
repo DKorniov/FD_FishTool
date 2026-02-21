@@ -1,0 +1,141 @@
+<root>
+<!-- MANUAL
+
+MetaLink - линк, связывающий скелет существа с мета-скелетом.
+	id         - идентификатор линка
+	metaModel  - идентификатор модели с мета-скелетом
+	correction - опциональный идентификатор для корректировки трансформаций в нестандартных скелетах.
+
+MetaJoint - сочленение костей существа с костями мета-скелета
+	base - имя кости существа
+	meta - имя кости мета-скелета
+
+Correction - Корректировка трансформаций для нестандартных скелетов
+	id     - идентификатор корректировки
+	matrix - корректирующая матрица
+
+MANUAL -->
+	
+	
+
+	<!-- Линк для рыбок в новом формате с мета-скелетом с нижними плавничками -->
+	<MetaLink id="newFormatLowerFinsLink" metaModel="meta_skeleton_lower_fins" correction="noneCorrection"> 
+		<MetaJoint base="joints" meta="Root_M" />
+		<MetaJoint base="body1"  meta="body1" />
+		<MetaJoint base="body2"  meta="body2" />
+		<MetaJoint base="body3"  meta="body3" />
+		<MetaJoint base="body4"  meta="body4" />
+
+		<!-- хвост -->
+		<MetaJoint base="tail1" meta="tail1" />
+		<MetaJoint base="tail2" meta="tail2" />
+		<MetaJoint base="tail3" meta="tail3" />
+
+		<MetaJoint base="tail_up1" meta="tail_up1" />
+		<MetaJoint base="tail_up2" meta="tail_up2" />
+
+		<MetaJoint base="tail_dwn1" meta="tail_dwn1" />
+		<MetaJoint base="tail_dwn2" meta="tail_dwn2" />
+
+		<MetaJoint base="right_eye" meta="right_eye" />
+		<MetaJoint base="left_eye"  meta="left_eye" />
+		<MetaJoint base="head"      meta="head" />
+
+		<!-- плавник -->
+		<MetaJoint base="right_side_plv_1"   meta="right_side_plv_1" />
+		<MetaJoint base="right_side_plv_1_2" meta="right_side_plv_1_2" />
+		<MetaJoint base="right_side_plv_1_3" meta="right_side_plv_1_3" />
+		<MetaJoint base="right_side_plv_1_4" meta="right_side_plv_1_4" />
+
+		<!-- плавник -->
+		<MetaJoint base="left_side_plv_1"   meta="left_side_plv_1" />
+		<MetaJoint base="left_side_plv_1_2" meta="left_side_plv_1_2" />
+		<MetaJoint base="left_side_plv_1_3" meta="left_side_plv_1_3" />
+		<MetaJoint base="left_side_plv_1_4" meta="left_side_plv_1_4" />
+
+		<!-- плавник нижний -->
+		<MetaJoint base="right_dwn_plv_1"   meta="right_dwn_plv_1" />
+		<MetaJoint base="right_dwn_plv_2"   meta="right_dwn_plv_2" />
+		<MetaJoint base="right_dwn_plv_end" meta="right_dwn_plv_end" />
+		<MetaJoint base="left_dwn_plv_1"    meta="left_dwn_plv_1" />
+		<MetaJoint base="left_dwn_plv_2"    meta="left_dwn_plv_2" />
+		<MetaJoint base="left_dwn_plv_end"  meta="left_dwn_plv_end" />
+		
+		<!-- глаз левый -->
+		<MetaJoint base="left_up_veko1"  meta="left_up_eyeShade1" />
+		<MetaJoint base="left_up_veko2"  meta="left_up_eyeShade2" />
+		<MetaJoint base="left_up_veko3"  meta="left_up_eyeShade3" />
+		<MetaJoint base="left_dwn_veko1" meta="left_dwn_eyeShade1" />
+		<MetaJoint base="left_dwn_veko2" meta="left_dwn_eyeShade2" />
+		<MetaJoint base="left_dwn_veko3" meta="left_dwn_eyeShade3" />
+
+		<!-- бровь правая -->
+		<MetaJoint base="right_brow1" meta="right_brow1" />
+		<MetaJoint base="right_brow2" meta="right_brow2" />
+		<MetaJoint base="right_brow3" meta="right_brow3" />
+
+		<!-- бровь левая -->
+		<MetaJoint base="left_brow1" meta="left_brow1" />
+		<MetaJoint base="left_brow2" meta="left_brow2" />
+		<MetaJoint base="left_brow3" meta="left_brow3" />
+
+		<!-- губы и рот -->
+		<MetaJoint base="center_up_lip"  meta="center_up_lip" />
+		<MetaJoint base="center_dwn_lip" meta="center_dwn_lip" />
+
+		<!-- плавник спина -->
+		<MetaJoint base="up_fin_front1"  meta="spine_body1_1" />
+		<MetaJoint base="up_fin_front3"  meta="spine_body1_2" />
+		<MetaJoint base="up_fin_middle1" meta="spine_body2_1" />
+		<MetaJoint base="up_fin_middle2" meta="spine_body2_2" />
+		<MetaJoint base="up_fin_back1"   meta="spine_body3_1" />
+		<MetaJoint base="up_fin_back2"   meta="spine_body3_2" />
+		
+		<!-- плавник пузо -->
+		<MetaJoint base="dwn_fin_front1" meta="belly_body2_1" />
+		<MetaJoint base="dwn_fin_front3" meta="belly_body2_2" />
+		<MetaJoint base="dwn_fin_back1"  meta="belly_body3_1" />
+		<MetaJoint base="dwn_fin_back2"  meta="belly_body3_2" />
+
+		<MetaJoint base="left_cheek1"     meta="left_up_cheek" />
+		<MetaJoint base="left_cheek2"     meta="left_cntr_cheek" />
+		<MetaJoint base="left_cheek3"     meta="left_dwn_cheek" />
+		<MetaJoint base="left_corner_lip" meta="left_corner_lip" />
+		<MetaJoint base="left_up_lip1"    meta="left_up_lip1" />
+		<MetaJoint base="left_up_lip2"    meta="left_up_lip2" />
+		<MetaJoint base="left_dwn_lip"    meta="left_dwn_lip1" />
+
+		<MetaJoint base="right_cheek1"     meta="right_up_cheek" />
+		<MetaJoint base="right_cheek2"     meta="right_cntr_cheek" />
+		<MetaJoint base="right_cheek3"     meta="right_dwn_cheek" />
+		<MetaJoint base="right_corner_lip" meta="right_corner_lip" />
+		<MetaJoint base="right_up_lip1"    meta="right_up_lip1" />
+		<MetaJoint base="right_up_lip2"    meta="right_up_lip2" />
+		<MetaJoint base="right_dwn_lip"    meta="right_dwn_lip1" />
+		
+		<MetaJoint base="teeth" meta="teeth" />
+		<MetaJoint base="jaw"   meta="jaw" />
+			
+	</MetaLink>
+
+	
+	
+	<!-- 
+	У разных рыбок кости нижних плавничков называются по разному
+	Если встречается более одной рыбки с одинаковыми названиями,
+	мы выносим такое подключение в отдельный тип
+	Шаблон для названия:
+		TYPE_[кости]_[тип]_[типовое название кости]
+	* [кости] - может иметь несколько признаков, разделенных '_'
+	Например если линк содержит кроме нижних плавников общую
+	линковку боковых плавников, будет SF (Side Fins), в данный момент,
+	это для нижних плавников, так что всюду будет LF (Lower Fins)
+	* [тип] - OLD или NEW - для нового метаскелета или старого,
+	если у рыбки oldModelFormat="true", то это OLD и кости имеют префикс OFt_
+	* [типовое название кости] - пример названия кости,
+	чтобы сразу можно было определить по названию, какой линк давать рыбке.
+	Обычно первая правая кость, например right_dwn_plv1 
+	-->
+		
+	
+</root>
