@@ -4,126 +4,122 @@ import sys
 import importlib
 from PySide2 import QtWidgets, QtCore, QtGui
 import maya.cmds as cmds
-import maya.mel as mel
 
-# Импорты стабильных модулей v3
+# Импорты ядра
 from FD_FishTool.core.meta_exporter import BoneNamePreparing
 from FD_FishTool.core.validator import FishValidator
 from FD_FishTool.core.anim_handler import AnimSyncManager
-
-# Импорты новых модулей v6
 from FD_FishTool.core.anim_manager import AnimManager
 from FD_FishTool.core.physics_manager import PhysicsManager
+
+# Импорты UI (Абсолютные пути для исключения ModuleNotFoundError)
 from FD_FishTool.ui.spring_selector import SpringSelectorWindow
+from FD_FishTool.ui.rig_body_ui import RigBodyWidget
 
 class FD_MainWindow(QtWidgets.QMainWindow):
     def __init__(self, config, parent=None):
         super(FD_MainWindow, self).__init__(parent)
-        
         self.cfg = config
         self.validator = FishValidator(self.cfg)
-        
-        # Инициализация менеджеров
         self.anim_mgr = AnimManager(self.cfg) 
         self.physics_mgr = PhysicsManager(self.cfg)
         
-        self.legacy_tool = None
+        # Подготовка костей для ренейма
+        bone_map = self.cfg.load_json("bone_map.json")
+        self.bone_preparer = BoneNamePreparing(bone_map)
         
-        self.setWindowTitle("FD_FishTool v2.0 | Integrated Master v6")
-        self.setMinimumSize(450, 850)
+        self.setWindowTitle("FD_FishTool v2.1 | Rigging Master")
+        self.setMinimumSize(500, 850)
         
         self.init_ui()
         self.refresh_anim_list()
-        print("FD_FishTool: UI инициализирован.")
 
     def init_ui(self):
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
         layout = QtWidgets.QVBoxLayout(central)
-
+        
         self.tabs = QtWidgets.QTabWidget()
         layout.addWidget(self.tabs)
 
-        self.tabs.addTab(self.ui_rigging(), "Rigging")
-        self.tabs.addTab(self.ui_animation(), "Animation")
-        self.tabs.addTab(self.ui_export(), "Export")
+        # Подключение вкладок (Animation и Export не тронуты)
+        self.tabs.addTab(self.ui_rigging_tab(), "Rigging")
+        self.tabs.addTab(self.ui_animation_tab(), "Animation")
+        self.tabs.addTab(self.ui_export_tab(), "Export")
 
+        # Настройки снизу
         btn_settings = QtWidgets.QPushButton("⚙ Настройки Пайплайна")
         btn_settings.setMinimumHeight(40)
         btn_settings.clicked.connect(self.open_settings)
         layout.addWidget(btn_settings)
 
-    def ui_rigging(self):
-        """Инструменты риггинга (валидация и ренейм костей)."""
+    def ui_rigging_tab(self):
+        """Вкладка риггинга: Здесь мы работаем над телом и ИИ."""
         tab = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(tab)
         
+        # Виджет логики тела (наш новый модуль)
+        self.rig_body_ui = RigBodyWidget(config=self.cfg)
+        layout.addWidget(self.rig_body_ui)
+        
+        # AI Rig Assistant
         ai_group = QtWidgets.QGroupBox("AI Rig Assistant")
         ai_lay = QtWidgets.QVBoxLayout(ai_group)
         self.ai_input = QtWidgets.QLineEdit()
-        self.ai_input.setPlaceholderText("Напр: 'Исправь веса'...")
+        self.ai_input.setPlaceholderText("Напр: 'Исправь веса на хвосте'...")
         ai_lay.addWidget(self.ai_input)
-        btn_ai = QtWidgets.QPushButton("✨ АНАЛИЗ")
-        btn_ai.clicked.connect(lambda: print(f"AI: {self.ai_input.text()}"))
+        btn_ai = QtWidgets.QPushButton("✨ АНАЛИЗ СЦЕНЫ")
+        btn_ai.clicked.connect(lambda: print(f"AI Analysing: {self.ai_input.text()}"))
         ai_lay.addWidget(btn_ai)
         layout.addWidget(ai_group)
 
         layout.addStretch()
         return tab
 
-    def ui_animation(self):
-        """Вкладка анимации: библиотека пресетов, синхронизация и СЕЛЕКТОР ФИЗИКИ."""
+    def ui_animation_tab(self):
+        """Вкладка анимации: Полный возврат к v2.0."""
         tab = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(tab)
         
-        # --- СЕКЦИЯ ФИЗИКИ (SPRING MAGIC) ---
-        sm_group = QtWidgets.QGroupBox("Physics Pipeline")
-        sm_lay = QtWidgets.QVBoxLayout(sm_group)
-        btn_sm = QtWidgets.QPushButton("🧬 OPEN SPRINGMAGIC SELECTOR")
-        btn_sm.setMinimumHeight(50)
-        btn_sm.setStyleSheet("background-color: #3d5a6b; font-weight: bold; color: white;")
-        btn_sm.clicked.connect(self.open_spring_selector)
-        sm_lay.addWidget(btn_sm)
-        layout.addWidget(sm_group)
-
-        # --- ЗАГРУЗКА ПРЕСЕТОВ ---
+        # Пресеты Studio Library
         lib_group = QtWidgets.QGroupBox("Studio Library Presets")
-        lib_lay = QtWidgets.QVBoxLayout(lib_group)
-        h_btn_lay = QtWidgets.QHBoxLayout()
-        
-        btn_body = QtWidgets.QPushButton("🕺 Apply BODY Anim")
-        btn_body.clicked.connect(lambda: self.anim_mgr.apply_studio_anim("body_standart_anim.anim"))
-        
-        btn_face = QtWidgets.QPushButton("😀 Apply FACE Anim")
-        btn_face.clicked.connect(lambda: self.anim_mgr.apply_studio_anim("face_standart_anim.anim"))
-        
-        h_btn_lay.addWidget(btn_body)
-        h_btn_lay.addWidget(btn_face)
-        lib_lay.addLayout(h_btn_lay)
+        l_lay = QtWidgets.QVBoxLayout(lib_group)
+        btn_b = QtWidgets.QPushButton("🕺 Select Set & Apply BODY Anim")
+        btn_b.clicked.connect(lambda: self.anim_mgr.apply_studio_anim("body_standart_anim.anim"))
+        btn_f = QtWidgets.QPushButton("😀 Select Set & Apply FACE Anim")
+        btn_f.clicked.connect(lambda: self.anim_mgr.apply_studio_anim("face_standart_anim.anim"))
+        l_lay.addWidget(btn_b)
+        l_lay.addWidget(btn_f)
         layout.addWidget(lib_group)
 
-        # --- СИНХРОНИЗАЦИЯ СПИСКА ---
-        sync_group = QtWidgets.QGroupBox("Animation Sync Checker")
-        sync_lay = QtWidgets.QVBoxLayout(sync_group)
-        
+        # Physics Pipeline (SpringMagic)
+        sm_group = QtWidgets.QGroupBox("Physics Pipeline")
+        s_lay = QtWidgets.QVBoxLayout(sm_group)
+        btn_sm = QtWidgets.QPushButton("🧬 OPEN SPRINGMAGIC SELECTOR")
+        btn_sm.setMinimumHeight(50)
+        btn_sm.setStyleSheet("background-color: #3d5a6b; color: white; font-weight: bold;")
+        btn_sm.clicked.connect(self.open_spring_selector)
+        s_lay.addWidget(btn_sm)
+        layout.addWidget(sm_group)
+
+        # Дерево анимаций
         self.anim_tree = QtWidgets.QTreeWidget()
         self.anim_tree.setHeaderLabels(["Статус", "Клип", "Эталон", "В Сцене"])
         self.anim_tree.itemClicked.connect(self.on_clip_click)
-        sync_lay.addWidget(self.anim_tree)
+        layout.addWidget(self.anim_tree)
 
-        btn_sync = QtWidgets.QPushButton("🔄 СИНХРОНИЗИРОВАТЬ")
-        btn_sync.setMinimumHeight(40)
+        btn_sync = QtWidgets.QPushButton("🔄 СИНХРОНИЗИРОВАТЬ СПИСОК")
         btn_sync.clicked.connect(self.refresh_anim_list)
-        sync_lay.addWidget(btn_sync)
+        layout.addWidget(btn_sync)
         
-        layout.addWidget(sync_group)
         return tab
 
-    def ui_export(self):
-        """Техническая проверка и экспорт."""
+    def ui_export_tab(self):
+        """Вкладка экспорта: Полный возврат к v2.0."""
         tab = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(tab)
         
+        # Секция валидации
         val_group = QtWidgets.QGroupBox("Техническая проверка")
         val_lay = QtWidgets.QVBoxLayout(val_group)
         btn_validate = QtWidgets.QPushButton("🔍 ПРОВЕРИТЬ СЦЕНУ")
@@ -136,6 +132,7 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         val_lay.addWidget(self.report_tree)
         layout.addWidget(val_group)
 
+        # Секция подготовки и экспорта
         prep_group = QtWidgets.QGroupBox("Подготовка")
         prep_lay = QtWidgets.QVBoxLayout(prep_group)
         btn_toggle = QtWidgets.QPushButton("🔄 RIG/EXPORT TOGGLE")
@@ -154,7 +151,6 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         return tab
 
     def open_spring_selector(self):
-        # Передаем physics_mgr для работы селектора
         self.spring_win = SpringSelectorWindow(self.physics_mgr, parent=self)
         self.spring_win.show()
 
@@ -171,19 +167,29 @@ class FD_MainWindow(QtWidgets.QMainWindow):
             self.report_tree.addTopLevelItem(item)
 
     def run_export_toggle(self):
-        bone_map = self.cfg.load_json("bone_map.json")
-        exporter = BoneNamePreparing(bone_map)
-        exporter.execute()
+        self.bone_preparer.execute()
 
     def launch_legacy_exporter(self):
-        paths = self.cfg.load_json("paths.json")
-        legacy_root = paths.get("legacy_exporter_path", "")
-        if not legacy_root or not os.path.exists(legacy_root): return
-        if legacy_root not in sys.path: sys.path.append(legacy_root)
+        """Исправленный метод запуска Playrix Exporter."""
+        path = self.cfg.load_json("paths.json").get("legacy_exporter_path", "")
+        if path and path not in sys.path:
+            sys.path.append(path)
+        
         try:
-            from playrix.export.main_dialog import MainDialog
-            self.legacy_tool = MainDialog()
-        except: pass
+            import playrix.export.main_dialog as lex
+            importlib.reload(lex)
+            
+            # Проверка способа запуска: функция show() или класс MainDialog()
+            if hasattr(lex, 'show'):
+                lex.show()
+            elif hasattr(lex, 'MainDialog'):
+                # Сохраняем ссылку на экземпляр, чтобы окно не закрылось сразу
+                self.exporter_instance = lex.MainDialog()
+                self.exporter_instance.show()
+            else:
+                cmds.warning("FD_FishTool: Не найден метод запуска в playrix.export.main_dialog")
+        except Exception as e:
+            cmds.warning(f"Ошибка при открытии экспортера: {e}")
 
     def refresh_anim_list(self):
         self.anim_tree.clear()

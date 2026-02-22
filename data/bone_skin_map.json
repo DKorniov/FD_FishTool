@@ -1,0 +1,24 @@
+{
+    "stage_1": {
+        "list": ["Head_M", "Face_M"],
+        "chains": ["BackA1_M"]
+    },
+    "stage_2": {
+        "chains": ["SpineFinA_M", "SpineFinB_M", "SpineFinF_M", "BellyFinA_M", "BellyFinB_M", "BellyFinF_M"]
+    },
+    "stage_3": {
+        "roots": ["BodyFinSide1_R", "BodyFinSide1_L"]
+    },
+    "stage_4": {
+        "list": [
+            "right_up_eyeShade1", "right_up_eyeShade2", "right_up_eyeShade3",
+            "right_dwn_eyeShade1", "right_dwn_eyeShade2", "right_dwn_eyeShade3",
+            "jaw", "teeth", "left_up_eyeShade1", "left_up_eyeShade2", "left_up_eyeShade3",
+            "left_dwn_eyeShade1", "left_dwn_eyeShade2", "left_dwn_eyeShade3",
+            "center_up_lip", "center_dwn_lip", "right_up_lip", "right_dwn_lip",
+            "right_corner_lip", "right_up_cheek", "right_cntr_cheek", "right_dwn_cheek",
+            "left_dwn_lip", "left_corner_lip", "left_up_cheek", "left_cntr_cheek",
+            "Eye_R", "Eye_L", "Brow1_L", "Brow2_L", "Brow1_R", "Brow2_R", "left_up_lip", "left_dwn_cheek"
+        ]
+    }
+}
