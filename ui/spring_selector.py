@@ -1,110 +1,143 @@
 # -*- coding: utf-8 -*-
-from PySide2 import QtWidgets, QtCore
+from PySide2 import QtWidgets, QtCore, QtGui
 import maya.cmds as cmds
 
 class SpringSelectorWindow(QtWidgets.QDialog):
     def __init__(self, physics_manager, parent=None):
-        """Окно селектора физики, работающее через PhysicsManager."""
+        """
+        Окно селектора для настройки физики SpringMagic.
+        :param physics_manager: Экземпляр core.physics_manager.PhysicsManager
+        """
         super(SpringSelectorWindow, self).__init__(parent)
-        self.manager = physics_manager
-        self.setWindowTitle("SpringMagic Physics Selector | v6")
+        self.physics_mgr = physics_manager
+        self.setWindowTitle("SpringMagic Selector | FD_FishTool")
         self.setMinimumWidth(500)
-        self.mapping = {}
-        self.ui_inputs = {}
+        
+        self.mapping = {}      # Хранит список контролов для каждой группы
+        self.ui_inputs = {}    # Хранит объекты QLineEdit для обновления текста
+        
         self.init_ui()
 
     def init_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
         
-        # Настройки SpringMagic
-        cfg_group = QtWidgets.QGroupBox("Параметры симуляции")
+        # 1. Блок параметров SpringMagic
+        cfg_group = QtWidgets.QGroupBox("Параметры физики")
         cfg_lay = QtWidgets.QGridLayout(cfg_group)
-        self.val_spring = QtWidgets.QDoubleSpinBox(); self.val_spring.setValue(0.5)
-        self.val_twist = QtWidgets.QDoubleSpinBox(); self.val_twist.setValue(0.2)
-        self.chk_loop = QtWidgets.QCheckBox("Loop"); self.chk_loop.setChecked(True)
         
-        cfg_lay.addWidget(QtWidgets.QLabel("Spring:"), 0, 0); cfg_lay.addWidget(self.val_spring, 0, 1)
-        cfg_lay.addWidget(QtWidgets.QLabel("Twist:"), 0, 2); cfg_lay.addWidget(self.val_twist, 0, 3)
-        cfg_lay.addWidget(self.chk_loop, 1, 0)
+        self.val_spring = QtWidgets.QDoubleSpinBox()
+        self.val_spring.setRange(0.0, 1.0)
+        self.val_spring.setSingleStep(0.1)
+        self.val_spring.setValue(0.5)
+        
+        self.val_twist = QtWidgets.QDoubleSpinBox()
+        self.val_twist.setRange(0.0, 1.0)
+        self.val_twist.setSingleStep(0.1)
+        self.val_twist.setValue(0.2)
+        
+        self.chk_loop = QtWidgets.QCheckBox("Loop (Цикличная анимация)")
+        self.chk_loop.setChecked(True)
+        
+        cfg_lay.addWidget(QtWidgets.QLabel("Spring (Ratio):"), 0, 0)
+        cfg_lay.addWidget(self.val_spring, 0, 1)
+        cfg_lay.addWidget(QtWidgets.QLabel("Twist (Ratio):"), 0, 2)
+        cfg_lay.addWidget(self.val_twist, 0, 3)
+        cfg_lay.addWidget(self.chk_loop, 1, 0, 1, 4)
         layout.addWidget(cfg_group)
 
-        # Категории контролов
-        rows = [("SideFin", "Боковые"), ("HeadFin", "Головные"), ("BellyFin", "Брюшные"), 
-                ("DorsalFin", "Спинные"), ("Tail", "Хвост"), ("Extra", "Доп")]
+        # 2. Блок выбора контролов цепей (версия 5)
+        rows = [
+            ("SideFin", "Боковые плавники"),
+            ("BellyFin", "Нижние брюшные"),
+            ("SideFin2", "Боковые 2"),
+            ("DorsalFin", "Верхние спинные"),
+            ("HeadFin", "Нижние головные"),
+            ("Tail", "Хвост (ветки)"),
+            ("Extra", "Дополнительные")
+        ]
         
         form = QtWidgets.QFormLayout()
         for key, label in rows:
-            line = QtWidgets.QLineEdit(); line.setReadOnly(True); line.setPlaceholderText("Не назначено")
+            line = QtWidgets.QLineEdit()
+            line.setReadOnly(True)
+            line.setPlaceholderText("Выделите корневой контрол...")
             self.ui_inputs[key] = line
+            
             btn = QtWidgets.QPushButton("Set")
-            # Используем *args, чтобы поглотить сигнал checked и избежать KeyError
-            btn.clicked.connect(lambda *args, k=key: self.assign(k))
-            h = QtWidgets.QHBoxLayout(); h.addWidget(line); h.addWidget(btn)
-            form.addRow(QtWidgets.QLabel(label), h)
+            btn.setFixedWidth(60)
+            # Передача ключа в метод назначения через лямбду
+            btn.clicked.connect(lambda checked=False, k=key: self.assign(k))
+            
+            h_layout = QtWidgets.QHBoxLayout()
+            h_layout.addWidget(line)
+            h_layout.addWidget(btn)
+            form.addRow(QtWidgets.QLabel(f"<b>{label}:</b>"), h_layout)
+            
         layout.addLayout(form)
 
-        # Кнопка запуска
+        # 3. Кнопка запуска полного цикла
         btn_run = QtWidgets.QPushButton("🚀 ЗАПУСТИТЬ ПОЛНЫЙ ЦИКЛ ФИЗИКИ")
-        btn_run.setMinimumHeight(60); btn_run.setStyleSheet("background-color: #d4a017; font-weight: bold; color: black;")
-        btn_run.clicked.connect(self.execute_physics)
+        btn_run.setMinimumHeight(60)
+        btn_run.setStyleSheet("background-color: #d4a017; font-weight: bold; color: black; font-size: 13px;")
+        btn_run.clicked.connect(self.execute_pipeline)
         layout.addWidget(btn_run)
 
     def assign(self, key):
-        """Привязка выделенных контролов к категории."""
-        sel = cmds.ls(sl=True, long=True)
-        if not sel: return
-        main = sel[0]
-        sym = self.manager.get_symmetric_control(main)
-        roots = [main]
-        if sym and cmds.objExists(sym): roots.append(sym)
-        self.mapping[key] = roots
-        self.ui_inputs[key].setText(", ".join([r.split('|')[-1] for r in roots]))
-        self.ui_inputs[key].setStyleSheet("background-color: #2b4433; color: white;")
-
-    def execute_physics(self):
-        """Последовательный запуск симуляции через PhysicsManager."""
-        if not self.mapping: 
-            QtWidgets.QMessageBox.warning(self, "Внимание", "Назначьте хотя бы одну цепочку!")
+        """
+        Назначает выделенный контрол в группу и ищет симметричную пару.
+        :param key: Ключ группы (напр. 'SideFin')
+        """
+        sel = cmds.ls(sl=True)
+        if not sel:
             return
         
-        # 1. Подготовка: LAT и Bind
-        for key in self.mapping:
-            for root in self.mapping[key]:
-                self.manager.setup_spring_target(root)
-                self.manager.bind_chain_sequence(root)
+        root_ctrl = sel[0]
+        # Используем метод симметрии из менеджера
+        sym_ctrl = self.physics_mgr.get_symmetric_control(root_ctrl)
         
-        # 2. Симуляция Плавников (Side/Belly)
-        fin_keys = ["SideFin", "BellyFin"]
+        roots = [root_ctrl]
+        display_text = root_ctrl
+        
+        if sym_ctrl and cmds.objExists(sym_ctrl):
+            roots.append(sym_ctrl)
+            display_text += f" + {sym_ctrl} (Auto-Sym)"
+            
+        self.mapping[key] = roots
+        self.ui_inputs[key].setText(display_text)
+        self.ui_inputs[key].setStyleSheet("background-color: #2b4433; color: white;")
+
+    def execute_pipeline(self):
+        """
+        Выполняет итеративный просчет всех анимаций для каждой группы.
+        """
+        if not self.mapping:
+            QtWidgets.QMessageBox.warning(self, "Ошибка", "Назначьте хотя бы один контрол!")
+            return
+        
+        all_proxies = []
+        
+        # Определяем наборы анимаций для разных групп по эталону
         fin_anims = ["plavnik_normal_move", "plavnik_normal_move2", "plavnik_wait_pose", "plavnik_crowded"]
-        self._simulate_group_logic(fin_keys, fin_anims)
-
-        # 3. Остальное (Tail/Dorsal/Extra)
-        other_keys = ["HeadFin", "DorsalFin", "Tail", "Extra"]
         other_anims = ["normal_move", "wait_pose"]
-        self._simulate_group_logic(other_keys, other_anims)
 
-        # 4. Финальное запекание
-        self.manager.final_bake_all()
-        QtWidgets.QMessageBox.information(self, "Готово", "Полный цикл физики завершен.")
-        self.accept()
+        # Процесс: LAT -> Bind -> Apply (для каждого клипа)
+        for key, roots in self.mapping.items():
+            # Выбор списка анимаций в зависимости от группы
+            anims = fin_anims if key in ["SideFin", "SideFin2", "BellyFin"] else other_anims
+            
+            for r in roots:
+                # Вызов основного рабочего метода физики
+                proxies = self.physics_mgr.process_spring_logic(
+                    root_ctrl=r, 
+                    anim_list=anims, 
+                    spring_val=self.val_spring.value(), 
+                    twist_val=self.val_twist.value(), 
+                    is_loop=self.chk_loop.isChecked()
+                )
+                all_proxies.extend(proxies)
 
-    def _simulate_group_logic(self, keys, anims):
-        """Сбор прокси и запуск симуляции."""
-        proxies = []
-        for k in keys:
-            if k in self.mapping:
-                for r in self.mapping[k]:
-                    short = r.split(':')[-1].split('|')[-1]
-                    found = cmds.ls(f"*{short}*_SpringProxy", long=True)
-                    proxies.extend(found)
+        # Финальное запекание на контролы в диапазоне 9-189
+        self.physics_mgr.final_bake(all_proxies)
         
-        if proxies:
-            proxies = list(set(proxies))
-            self.manager.set_tech_keys(proxies, anims)
-            cmds.select(proxies, replace=True)
-            self.manager.apply_sm_to_selection(
-                self.val_spring.value(), 
-                self.val_twist.value(), 
-                self.chk_loop.isChecked(), 
-                anims
-            )
+        QtWidgets.QMessageBox.information(self, "Success", "Все физические циклы запечены и очищены.")
+        self.accept()
