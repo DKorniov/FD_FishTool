@@ -8,13 +8,10 @@ class BodyRigManager:
         self.cfg = config
         self.map_file = "bone_skin_map.json"
 
-    # --- Вспомогательные методы (Mesh & Lists) ---
+    # --- Вспомогательные методы ---
     def get_all_meshes_in_scene(self):
         mesh_shapes = cmds.ls(type='mesh', ni=True) or []
-        mesh_transforms = []
-        for shape in mesh_shapes:
-            parent = cmds.listRelatives(shape, p=True)
-            if parent: mesh_transforms.append(parent[0])
+        mesh_transforms = [cmds.listRelatives(s, p=True)[0] for s in mesh_shapes if cmds.listRelatives(s, p=True)]
         return sorted(list(set(mesh_transforms)))
 
     def find_default_mesh(self):
@@ -26,111 +23,120 @@ class BodyRigManager:
             if any(s in m.lower() for s in ['_geo', '_mesh', '_msh']): return m
         return all_meshes[0]
 
-    # --- Хирургическая Топологическая Логика ---
     def get_vtx_neighbors(self, vtx_list):
-        """Находит соседей через эджи (топологический шаг)."""
         if not vtx_list: return set()
         edges = cmds.polyListComponentConversion(list(vtx_list), toEdge=True)
         neighbors = cmds.polyListComponentConversion(edges, toVertex=True)
         return set(cmds.ls(neighbors, fl=True))
 
-    def get_bone_influence_island(self, sc, bone):
-        """Получает массив вертексов, на которые влияет кость (из логики skinMagic)."""
-        # Используем API-метод через cmds для получения точек влияния
+    def get_bone_island(self, sc, bone):
         try:
-            # Находим индекс кости в скинкластере
-            all_inf = cmds.skinCluster(sc, q=True, inf=True)
-            if bone not in all_inf: return set()
-            
-            # Получаем вертексы с весом > 0 для этой кости
             cmds.select(cl=True)
             cmds.skinCluster(sc, edit=True, selectInfluenceVerts=bone)
-            island = set(cmds.ls(sl=True, fl=True))
-            return island
-        except:
-            return set()
+            return set(cmds.ls(sl=True, fl=True))
+        except: return set()
+
+    def get_topology_distance(self, start_island, target_island):
+        """Считает количество 'лупов' между двумя островами."""
+        distance = 0
+        current_area = set(start_island)
+        edge_vtx = set(start_island)
+        
+        # Максимум 10 шагов для безопасности
+        for i in range(1, 11):
+            next_step = self.get_vtx_neighbors(list(edge_vtx)) - current_area
+            if not next_step: break
+            if next_step & target_island:
+                return i
+            current_area.update(next_step)
+            edge_vtx = next_step
+        return 10
 
     def apply_topological_gradient(self, mesh_name):
-        """Островной градиент: работает только с вертексами выделенных костей."""
-        joints = cmds.ls(sl=True, type='joint')
+        """
+        [STEP 3 - XL UPDATE] Адаптивная экспансия с поддержкой длинных градиентов.
+        Выбирает схему весов на основе топологического расстояния.
+        """
+        joints = cmds.ls(os=True, type='joint')
         if len(joints) < 2:
-            cmds.warning("Выделите хотя бы 2 кости (в порядке распределения).")
-            return
+            cmds.warning("Выделите цепочку костей по порядку."); return
 
         sc_list = cmds.ls(cmds.listHistory(mesh_name), type='skinCluster')
         if not sc_list: return
         sc = sc_list[0]
 
-        print("--- [RigBody] Island-Based Gradient Logic Start ---")
+        # Конфигурация режимов
+        MODES = {
+            1: {"name": "DENSE", "steps": [0.25, 0.1]},
+            2: {"name": "STANDARD", "steps": [0.5, 0.25, 0.1]},
+            3: {"name": "STANDARD XL (Deep)", "steps": [0.75, 0.5, 0.25, 0.1]},
+            4: {"name": "STANDARD XXL (Ultra)", "steps": [0.9, 0.75, 0.5, 0.25, 0.1]},
+            5: {"name": "STANDARD XXXL (Infinite)", "steps": [1.0, 0.9, 0.75, 0.5, 0.25, 0.1]}
+        }
 
-        # Обрабатываем последовательно по парам из выделения (без иерархии)
-        for i in range(len(joints) - 1):
-            bnA, bnB = joints[i], joints[i+1]
+        print("\n" + "="*70)
+        print("FD_FishTool: SURGICAL ADAPTIVE EXPANSION (MULTI-MODE)")
+        print("Chain: {}".format(" -> ".join(joints)))
+        print("="*70)
+
+        def expand_influence(source_bone, target_bone, label_direction):
+            src_island = self.get_bone_island(sc, source_bone)
+            tgt_island = self.get_bone_island(sc, target_bone)
+            if not src_island or not tgt_island: return
+
+            # Определяем расстояние и выбираем режим
+            dist = self.get_topology_distance(src_island, tgt_island)
+            mode_key = dist if dist in MODES else max(MODES.keys())
+            mode = MODES[mode_key]
             
-            # 1. Получаем 'Острова' вертексов
-            islandA = self.get_bone_influence_island(sc, bnA)
-            islandB = self.get_bone_influence_island(sc, bnB)
+            print("\n  [{}] {} -> {} | Distance: {} | Mode: {}".format(
+                label_direction, source_bone, target_bone, dist, mode["name"]))
 
-            if not islandA or not islandB:
-                print("  > Pair {}-{}: One island is empty. Skipping.".format(bnA, bnB))
-                continue
+            # Фронтир источника
+            frontier = {v for v in src_island if self.get_vtx_neighbors([v]) - src_island}
+            if not frontier: return
 
-            # 2. Находим ШОВ (вертексы A, касающиеся B, и наоборот)
-            seamA = {v for v in islandA if self.get_vtx_neighbors([v]) & islandB}
-            seamB = {v for v in islandB if self.get_vtx_neighbors([v]) & islandA}
-            full_seam = list(seamA | seamB)
-
-            if not full_seam:
-                print("  > Pair {}-{}: No topological contact found.".format(bnA, bnB))
-                continue
-
-            print("  > Pair {}-{}: Seam found ({} vtx). Applying layers.".format(bnA, bnB, len(full_seam)))
-
-            # 3. Слои BFS строго ВНУТРИ островов
-            # Слои для А (вглубь острова А)
-            l1A = (self.get_vtx_neighbors(seamA) & islandA) - seamA
-            l2A = (self.get_vtx_neighbors(list(l1A)) & islandA) - seamA - l1A
+            current_source_area = set(src_island)
+            previous_loop = set(frontier)
             
-            # Слои для B (вглубь острова B)
-            l1B = (self.get_vtx_neighbors(seamB) & islandB) - seamB
-            l2B = (self.get_vtx_neighbors(list(l1B)) & islandB) - seamB - l1B
+            for idx, weight in enumerate(mode["steps"]):
+                next_loop = self.get_vtx_neighbors(list(previous_loop)) - current_source_area
+                # Ограничиваем инвазию территорией цели
+                next_loop = next_loop & tgt_island if tgt_island else next_loop
+                
+                if next_loop:
+                    cmds.skinPercent(sc, list(next_loop), tv=[(source_bone, weight)], relative=True, nrm=True)
+                    print("    > Row {}: {} vtx -> ADD {} weight for {}".format(idx+1, len(next_loop), weight, source_bone))
+                    current_source_area.update(next_loop)
+                    previous_loop = next_loop
+                else: break
 
-            # 4. Хирургическое назначение весов (только для этой пары)
-            # Шов: 0.5 / 0.5
-            cmds.skinPercent(sc, full_seam, tv=[(bnA, 0.5), (bnB, 0.5)], nrm=True)
-            # Шаг 1: 0.25 от соседа
-            if l1A: cmds.skinPercent(sc, list(l1A), tv=[(bnA, 0.75), (bnB, 0.25)], nrm=True)
-            if l1B: cmds.skinPercent(sc, list(l1B), tv=[(bnB, 0.75), (bnA, 0.25)], nrm=True)
-            # Шаг 2: 0.1 от соседа
-            if l2A: cmds.skinPercent(sc, list(l2A), tv=[(bnA, 0.9), (bnB, 0.1)], nrm=True)
-            if l2B: cmds.skinPercent(sc, list(l2B), tv=[(bnB, 0.9), (bnA, 0.1)], nrm=True)
+        for i in range(len(joints)):
+            if i + 1 < len(joints): expand_influence(joints[i], joints[i+1], "FORWARD")
+            if i - 1 >= 0: expand_influence(joints[i], joints[i-1], "BACKWARD")
 
         cmds.select(joints, r=True)
-        print("FD_FishTool: Островной топологический градиент завершен.")
+        print("\n" + "="*70 + "\nFD_FishTool: ALL TASKS COMPLETE.\n" + "="*70)
 
-    # --- Секция Скиннинга ---
+    # --- Стандартные методы скиннинга (без изменений) ---
     def get_full_bone_list(self, stage_key):
         data = self.cfg.load_json(self.map_file)
         if not data or stage_key not in data: return []
         s_data = data[stage_key]
         final = []
-        # Собираем прямые цепи
         if "chains" in s_data:
             for r in s_data["chains"]:
                 if cmds.objExists(r):
-                    chain = [r]
-                    curr = r
+                    chain = [r]; curr = r
                     while True:
                         child = cmds.listRelatives(curr, c=True, type='joint')
                         if not child: break
                         curr = child[0]; chain.append(curr)
                     final.extend(chain)
-        # Собираем корни
         if "roots" in s_data:
             for r in s_data["roots"]:
                 if cmds.objExists(r):
-                    final.append(r)
-                    final.extend(cmds.listRelatives(r, ad=True, type='joint') or [])
+                    final.append(r); final.extend(cmds.listRelatives(r, ad=True, type='joint') or [])
         if "list" in s_data: final.extend(s_data["list"])
         return sorted(list(set([j for j in final if cmds.objExists(j)])))
 
@@ -158,6 +164,5 @@ class BodyRigManager:
     def clean_weightless_bones(self, mesh_name):
         sc = cmds.ls(cmds.listHistory(mesh_name), type='skinCluster')
         if sc:
-            cmds.select(mesh_name, r=True)
-            mel.eval("removeUnusedInfluences;")
+            cmds.select(mesh_name, r=True); mel.eval("removeUnusedInfluences;")
             cmds.skinCluster(sc[0], edit=True, rui=True)
