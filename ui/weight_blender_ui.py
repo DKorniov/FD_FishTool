@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from PySide2 import QtWidgets, QtCore
+import maya.cmds as cmds
 from FD_FishTool.core.weight_blender import WeightBlender
 
 class WeightBlenderWidget(QtWidgets.QWidget):
@@ -11,29 +12,52 @@ class WeightBlenderWidget(QtWidgets.QWidget):
 
     def setup_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(5)
+        layout.setContentsMargins(0, 0, 0, 0); layout.setSpacing(10)
 
-        # EA Color Bar
-        self.ea_grad = QtWidgets.QLabel(); self.ea_grad.setFixedHeight(8)
-        self.ea_grad.setStyleSheet("background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ff5555, stop:0.5 #ffffff, stop:1 #55ff55); border-radius: 2px;")
-        layout.addWidget(self.ea_grad)
+        # --- TWIN MACHINE UI ---
+        tw_group = QtWidgets.QVBoxLayout()
+        hl = QtWidgets.QHBoxLayout()
+        self.bn1_label = QtWidgets.QLabel("🔴 <b>BN1</b>")
+        self.bn1_label.setStyleSheet("color: #ffaaaa;")
+        self.tw_lbl = QtWidgets.QLabel("<b>TWIN (0.0)</b>")
+        self.bn2_label = QtWidgets.QLabel("<b>BN2</b> 🔵")
+        self.bn2_label.setStyleSheet("color: #aaaaff;")
+        
+        hl.addWidget(self.bn1_label); hl.addStretch(); hl.addWidget(self.tw_lbl); hl.addStretch(); hl.addWidget(self.bn2_label)
+        tw_group.addLayout(hl)
 
-        # Ease In/Out Slider
-        hl1 = QtWidgets.QHBoxLayout(); hl1.addWidget(QtWidgets.QLabel("📉 In")); self.ea_lbl = QtWidgets.QLabel("<b>EA (0.0)</b>")
-        hl1.addStretch(); hl1.addWidget(self.ea_lbl); hl1.addStretch(); hl1.addWidget(QtWidgets.QLabel("Out 📈"))
-        layout.addLayout(hl1)
-        self.ea_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
-        self.ea_slider.setRange(-20, 20); self.ea_slider.setValue(0)
-        self.ea_slider.valueChanged.connect(lambda v: self.ea_lbl.setText(f"<b>EA ({v*0.05:.2f})</b>"))
-        layout.addWidget(self.ea_slider)
-
-        # Twin Machine Slider
-        hl2 = QtWidgets.QHBoxLayout(); hl2.addWidget(QtWidgets.QLabel("🔴 BN1")); self.tw_lbl = QtWidgets.QLabel("<b>TWIN (0.0)</b>")
-        hl2.addStretch(); hl2.addWidget(self.tw_lbl); hl2.addStretch(); hl2.addWidget(QtWidgets.QLabel("BN2 🔵"))
-        layout.addLayout(hl2)
         self.tw_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.tw_slider.setRange(-20, 20); self.tw_slider.setValue(0)
-        self.tw_slider.sliderPressed.connect(lambda: self.blender.start_live_blend(self.get_mesh()))
-        self.tw_slider.sliderMoved.connect(lambda v: [self.tw_lbl.setText(f"<b>TWIN ({v*0.05:.2f})</b>"), self.blender.update_live_blend(v*0.05)])
-        self.tw_slider.sliderReleased.connect(lambda: [self.blender.stop_live_blend(), self.tw_slider.setValue(0), self.tw_lbl.setText("<b>TWIN (0.0)</b>")])
-        layout.addWidget(self.tw_slider)
+        self.tw_slider.setTickPosition(QtWidgets.QSlider.TicksBelow)
+        
+        self.tw_slider.sliderPressed.connect(self._on_press)
+        self.tw_slider.sliderMoved.connect(self._on_move)
+        self.tw_slider.sliderReleased.connect(self._on_release)
+        
+        tw_group.addWidget(self.tw_slider); layout.addLayout(tw_group)
+
+    def _on_press(self):
+        """Информативное отображение имен костей."""
+        joints = cmds.ls(os=True, type='joint')
+        if len(joints) >= 2:
+            n1, n2 = joints[0].split('|')[-1], joints[1].split('|')[-1]
+            self.bn1_label.setText(f"🔴 <b>{n1}</b>")
+            self.bn2_label.setText(f"<b>{n2}</b> 🔵")
+            # Стартуем логику. Если кость не инфлюенс - вернет False.
+            if not self.blender.start_live_blend(self.get_mesh()):
+                # Сбрасываем метки, если старт не удался
+                self.bn1_label.setText("🔴 <b>BN1</b>")
+                self.bn2_label.setText("<b>BN2</b> 🔵")
+        else:
+            cmds.warning("FD_FishTool: Выделите две кости!")
+
+    def _on_move(self, val):
+        f_val = val * 0.05
+        self.tw_lbl.setText(f"<b>TWIN ({f_val:.2f})</b>")
+        self.blender.update_live_blend(f_val)
+        cmds.refresh(force=True)
+
+    def _on_release(self):
+        self.blender.stop_live_blend()
+        self.tw_slider.setValue(0)
+        self.tw_lbl.setText("<b>TWIN (0.0)</b>")
