@@ -3,6 +3,7 @@ from PySide2 import QtWidgets, QtCore
 import maya.cmds as cmds
 from FD_FishTool.core.rig_body import BodyRigManager
 from FD_FishTool.ui.weight_blender_ui import WeightBlenderWidget
+from FD_FishTool.ui.easy_ease_ui import EasyEaseWidget
 
 class RigBodyWidget(QtWidgets.QWidget):
     def __init__(self, config=None, parent=None):
@@ -37,6 +38,11 @@ class RigBodyWidget(QtWidgets.QWidget):
         self.blender_ui = WeightBlenderWidget(self.manager, lambda: self.mesh_combo.currentText())
         slider_group = QtWidgets.QGroupBox("Interactive Curve Control")
         vl = QtWidgets.QVBoxLayout(slider_group); vl.addWidget(self.blender_ui); layout.addWidget(slider_group)
+
+        # В метод setup_ui класса RigBodyWidget:
+        self.ease_ui = EasyEaseWidget(self.manager, lambda: self.mesh_combo.currentText())
+        ease_group = QtWidgets.QGroupBox("Easy Ease Control")
+        vl = QtWidgets.QVBoxLayout(ease_group); vl.addWidget(self.ease_ui); layout.addWidget(ease_group)
 
         # 4. Weight Utilities (Все кнопки восстановлены)
         util_group = QtWidgets.QGroupBox("Weight Utilities")
