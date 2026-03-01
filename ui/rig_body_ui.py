@@ -41,7 +41,7 @@ class RigBodyWidget(QtWidgets.QWidget):
 
         # В метод setup_ui класса RigBodyWidget:
         self.ease_ui = EasyEaseWidget(self.manager, lambda: self.mesh_combo.currentText())
-        ease_group = QtWidgets.QGroupBox("Easy Ease Control")
+        ease_group = QtWidgets.QGroupBox("Easy Ease Control (test version 1.0)")
         vl = QtWidgets.QVBoxLayout(ease_group); vl.addWidget(self.ease_ui); layout.addWidget(ease_group)
 
         # 4. Weight Utilities (Все кнопки восстановлены)

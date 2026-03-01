@@ -1,0 +1,29 @@
+{
+  "gui_library_path": "data/face_controls_library.ma",
+  "modules": {
+    "mouth": {
+      "controls": ["Upr_Lip", "Lwr_Lip", "Jaw", "Sync", "Emote", "gui_teeth"],
+      "joints": {
+        "mchFcrg_cent_up_lip1": [
+            {"driver": "Sync.ty", "attr": "translateY", "keys": [[0,0], [1, 1.5], [-1, -1.5]]},
+            {"driver": "Sync.tx", "attr": "translateX", "keys": [[0,0], [1, 1.0], [-1, -1.0]]}
+        ],
+        "mchFcrg_teeth": [
+            {"driver": "gui_teeth.ty", "attr": "translateY", "keys": [[0,0], [1, 2.0], [-1, -2.0]]},
+            {"driver": "gui_teeth.tx", "attr": "rotateY", "keys": [[0,0], [1, 15], [-1, -15]]}
+        ],
+        "mchFcrg_jaw": [
+            {"driver": "Jaw.ty", "attr": "rotateX", "keys": [[0,0], [-1, 30]]}
+        ]
+      }
+    },
+    "eyes": {
+      "controls": ["R_Upp_EyeLid", "R_Lwr_EyeLid", "L_Upp_EyeLid", "L_Lwr_EyeLid"],
+      "joints": {
+        "mchFcrg_right_up_eyeShade2": [
+            {"driver": "R_Upp_EyeLid.ty", "attr": "rotateX", "keys": [[0,0], [1, -30]]}
+        ]
+      }
+    }
+  }
+}

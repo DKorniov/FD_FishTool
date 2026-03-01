@@ -5,12 +5,15 @@ import importlib
 from PySide2 import QtWidgets, QtCore, QtGui
 import maya.cmds as cmds
 
+
 # Импорты ядра
 from FD_FishTool.core.meta_exporter import BoneNamePreparing
 from FD_FishTool.core.validator import FishValidator
 from FD_FishTool.core.anim_handler import AnimSyncManager
 from FD_FishTool.core.anim_manager import AnimManager
 from FD_FishTool.core.physics_manager import PhysicsManager
+from FD_FishTool.ui.rig_face_ui import FaceRigTab
+
 
 # Импорты UI (Абсолютные пути для исключения ModuleNotFoundError)
 from FD_FishTool.ui.spring_selector import SpringSelectorWindow
@@ -33,6 +36,8 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         
         self.init_ui()
         self.refresh_anim_list()
+        self.face_tab = FaceRigTab()
+        self.tabs.addTab(self.face_tab, "Face Rig")
 
     def init_ui(self):
         central = QtWidgets.QWidget()
