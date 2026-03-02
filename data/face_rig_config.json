@@ -1,29 +1,98 @@
 {
-  "gui_library_path": "data/face_controls_library.ma",
-  "modules": {
-    "mouth": {
-      "controls": ["Upr_Lip", "Lwr_Lip", "Jaw", "Sync", "Emote", "gui_teeth"],
-      "joints": {
-        "mchFcrg_cent_up_lip1": [
-            {"driver": "Sync.ty", "attr": "translateY", "keys": [[0,0], [1, 1.5], [-1, -1.5]]},
-            {"driver": "Sync.tx", "attr": "translateX", "keys": [[0,0], [1, 1.0], [-1, -1.0]]}
-        ],
-        "mchFcrg_teeth": [
-            {"driver": "gui_teeth.ty", "attr": "translateY", "keys": [[0,0], [1, 2.0], [-1, -2.0]]},
-            {"driver": "gui_teeth.tx", "attr": "rotateY", "keys": [[0,0], [1, 15], [-1, -15]]}
-        ],
-        "mchFcrg_jaw": [
-            {"driver": "Jaw.ty", "attr": "rotateX", "keys": [[0,0], [-1, 30]]}
-        ]
-      }
-    },
-    "eyes": {
-      "controls": ["R_Upp_EyeLid", "R_Lwr_EyeLid", "L_Upp_EyeLid", "L_Lwr_EyeLid"],
-      "joints": {
-        "mchFcrg_right_up_eyeShade2": [
-            {"driver": "R_Upp_EyeLid.ty", "attr": "rotateX", "keys": [[0,0], [1, -30]]}
-        ]
-      }
-    }
+  "R_Upp_EyeLid": {
+    "driven": [
+      "mchFcrg_right_up_eyeShade1",
+      "mchFcrg_right_up_eyeShade2",
+      "mchFcrg_right_up_eyeShade3"
+    ]
+  },
+  "R_Lwr_EyeLid": {
+    "driven": [
+      "mchFcrg_right_dwn_eyeShade1",
+      "mchFcrg_right_dwn_eyeShade2",
+      "mchFcrg_right_dwn_eyeShade3"
+    ]
+  },
+  "L_Upp_EyeLid": {
+    "driven": [
+      "mchFcrg_left_up_eyeShade1",
+      "mchFcrg_left_up_eyeShade2",
+      "mchFcrg_left_up_eyeShade3"
+    ]
+  },
+  "L_Lwr_EyeLid": {
+    "driven": [
+      "mchFcrg_left_dwn_eyeShade1",
+      "mchFcrg_left_dwn_eyeShade2",
+      "mchFcrg_left_dwn_eyeShade3"
+    ]
+  },
+  "Sync": {
+    "driven": [
+      "mchFcrg_jaw",
+      "mchFcrg_cent_up_lip1",
+      "mchFcrg_cent_dwn_lip1",
+      "mchFcrg_left_up_lip*",
+      "mchFcrg_left_dwn_lip*",
+      "mchFcrg_right_up_lip*",
+      "mchFcrg_right_dwn_lip*",
+      "mchFcrg_left_corner_lip",
+      "mchFcrg_right_corner_lip",
+      "mchFcrg_left_up_cheek",
+      "mchFcrg_left_cntr_cheek",
+      "mchFcrg_left_dwn_cheek",
+      "mchFcrg_right_up_cheek",
+      "mchFcrg_right_cntr_cheek",
+      "mchFcrg_right_dwn_cheek"
+    ]
+  },
+  "Upr_Lip": {
+    "driven": [
+      "mchFcrg_cent_up_lip1",
+      "mchFcrg_right_up_lip*",
+      "mchFcrg_left_up_lip*"
+    ]
+  },
+  "Lwr_Lip": {
+    "driven": [
+      "mchFcrg_cent_dwn_lip1",
+      "mchFcrg_right_dwn_lip*",
+      "mchFcrg_left_dwn_lip*"
+    ]
+  },
+  "Emote": {
+    "driven": [
+      "mchFcrg_right_up_lip*",
+      "mchFcrg_right_dwn_lip*",
+      "mchFcrg_left_up_lip*",
+      "mchFcrg_left_dwn_lip*",
+      "mchFcrg_right_corner_lip",
+      "mchFcrg_left_corner_lip",
+      "mchFcrg_right_up_cheek",
+      "mchFcrg_right_cntr_cheek",
+      "mchFcrg_right_dwn_cheek",
+      "mchFcrg_left_up_cheek",
+      "mchFcrg_left_cntr_cheek",
+      "mchFcrg_left_dwn_cheek"
+    ]
+  },
+  "Jaw": {
+    "driven": [
+      "mchFcrg_jaw",
+      "mchFcrg_cent_dwn_lip1",
+      "mchFcrg_left_dwn_lip*",
+      "mchFcrg_right_dwn_lip*",
+      "mchFcrg_right_corner_lip",
+      "mchFcrg_left_corner_lip",
+      "mchFcrg_right_cntr_cheek",
+      "mchFcrg_right_dwn_cheek",
+      "mchFcrg_left_cntr_cheek",
+      "mchFcrg_left_dwn_cheek"
+    ]
+  },
+  "gui_teeth": {
+    "driven": [
+      "mchFcrg_teeth"
+    ]
   }
 }

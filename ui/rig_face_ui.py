@@ -4,233 +4,155 @@ import maya.cmds as cmds
 from FD_FishTool.core.face_rig_builder import FaceRigBuilder
 
 class FaceSelectorWindow(QtWidgets.QDialog):
-    def __init__(self, builder, parent=None):
+    def __init__(self, builder, parent=None, log_widget=None):
         super(FaceSelectorWindow, self).__init__(parent)
         self.builder = builder
-        self.setWindowTitle("Face Control Selector & Tools")
+        self.ai_log = log_widget
+        self.setWindowTitle("Face Selector & SMART KEY")
         self.setMinimumSize(850, 550)
-        self.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.WindowStaysOnTopHint)
-        self.setModal(False)
-
-        main_layout = QtWidgets.QHBoxLayout(self)
-
-        # ЛЕВО: Селектор
-        selector_group = QtWidgets.QGroupBox("Interactive Face Selector")
-        self.grid = QtWidgets.QGridLayout(selector_group)
-        self._setup_selector_buttons()
-        main_layout.addWidget(selector_group, stretch=1)
-
-        # ПРАВО: Списки и Инструменты
-        right_panel = QtWidgets.QVBoxLayout()
+        self.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.WindowStaysOnTopHint); self.setModal(False)
         
-        right_panel.addWidget(QtWidgets.QLabel("<b>Driver (Control):</b>"))
-        self.driver_list = QtWidgets.QListWidget()
-        right_panel.addWidget(self.driver_list)
-        btn_load_driver = QtWidgets.QPushButton("Load Selected to Driver")
-        btn_load_driver.clicked.connect(lambda: self._load_to_list(self.driver_list))
-        right_panel.addWidget(btn_load_driver)
+        main_lay = QtWidgets.QHBoxLayout(self)
+        sel_grp = QtWidgets.QGroupBox("Selector")
+        self.grid = QtWidgets.QGridLayout(sel_grp)
+        self._setup_grid()
+        main_lay.addWidget(sel_grp, stretch=2)
 
-        right_panel.addWidget(QtWidgets.QLabel("<b>Driven (Mechanical Bones):</b>"))
+        right_panel = QtWidgets.QVBoxLayout()
+        right_panel.addWidget(QtWidgets.QLabel("<b>Driven Bones:</b>"))
         self.driven_list = QtWidgets.QListWidget()
         right_panel.addWidget(self.driven_list)
-        btn_load_driven = QtWidgets.QPushButton("Load Selected to Driven")
-        btn_load_driven.clicked.connect(lambda: self._load_to_list(self.driven_list))
-        right_panel.addWidget(btn_load_driven)
-
-        # Анимация и Зеркало
-        act_group = QtWidgets.QGroupBox("Animation & Rig Tools")
-        act_lay = QtWidgets.QVBoxLayout(act_group)
         
-        self.btn_gen_anim = QtWidgets.QPushButton("Gen Test Anim")
-        self.btn_gen_anim.setFixedHeight(35)
-        self.btn_gen_anim.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold;")
-        self.btn_gen_anim.clicked.connect(self.builder.run_context_test_animation)
-
-        self.btn_clean_anim = QtWidgets.QPushButton("Clean Test Anim")
-        self.btn_clean_anim.clicked.connect(self.builder.clean_test_animation)
-        
-        self.btn_mirror_pos = QtWidgets.QPushButton("Mirror Driven Pos (R -> L)")
-        self.btn_mirror_pos.clicked.connect(self.builder.mirror_drivens_logic)
-
         self.btn_key = QtWidgets.QPushButton("KEY")
-        self.btn_key.setFixedHeight(40)
-        self.btn_key.setStyleSheet("background-color: #d35400; color: white; font-weight: bold;")
-        
-        act_lay.addWidget(self.btn_gen_anim)
-        act_lay.addWidget(self.btn_clean_anim)
-        act_lay.addWidget(self.btn_mirror_pos)
-        act_lay.addWidget(self.btn_key)
-        
-        right_panel.addWidget(act_group)
-        main_layout.addLayout(right_panel, stretch=1)
+        self.btn_key.setFixedHeight(60)
+        self.btn_key.setStyleSheet("background-color: #d35400; color: white; font-weight: bold; font-size: 16pt;")
+        self.btn_key.clicked.connect(self._do_key)
+        right_panel.addWidget(self.btn_key)
 
-    def _setup_selector_buttons(self):
-        # (Row, Col, Label, Internal_Name)
-        controls = [
-            (0, 0, "L_Upp_Lid", "L_Upp_EyeLid"), (0, 2, "R_Upp_Lid", "R_Upp_EyeLid"),
-            (1, 0, "L_Lwr_Lid", "L_Lwr_EyeLid"), (1, 1, "Sync", "Sync"), (1, 2, "R_Lwr_Lid", "R_Lwr_EyeLid"),
-            (2, 1, "Upr_Lip", "Upr_Lip"),
-            (3, 0, "Emote", "Emote"), (3, 1, "Lwr_Lip", "Lwr_Lip"), (3, 2, "Jaw", "Jaw"),
-            (4, 1, "Teeth", "gui_teeth")
-        ]
-        for r, c, label, name in controls:
-            btn = QtWidgets.QPushButton(label)
-            btn.setFixedSize(110, 55)
-            # checked=False перехватывает булево значение из сигнала clicked
-            btn.clicked.connect(lambda checked=False, n=name: self._select_in_maya(n))
-            self.grid.addWidget(btn, r, c)
+        anim_grp = QtWidgets.QGroupBox("Test Tools")
+        al = QtWidgets.QVBoxLayout(anim_grp)
+        self.btn_gen = QtWidgets.QPushButton("Gen Test Anim")
+        self.btn_gen.clicked.connect(self._run_anim)
+        self.btn_clean = QtWidgets.QPushButton("Clean & Zero All")
+        self.btn_clean.clicked.connect(self._run_clean)
+        al.addWidget(self.btn_gen); al.addWidget(self.btn_clean)
+        right_panel.addWidget(anim_grp)
+        main_lay.addLayout(right_panel, stretch=1)
 
-    def _select_in_maya(self, name):
-        if cmds.objExists(name):
-            cmds.select(name)
-        else:
-            cmds.warning(f"Control '{name}' not found.")
+    def _setup_grid(self):
+        ctrls = [(0,0,"L_Upp_Lid","L_Upp_EyeLid"),(0,2,"R_Upp_Lid","R_Upp_EyeLid"),
+                 (1,0,"L_Lwr_Lid","L_Lwr_EyeLid"),(1,1,"Sync","Sync"),(1,2,"R_Lwr_Lid","R_Lwr_EyeLid"),
+                 (2,1,"Upr_Lip","Upr_Lip"),(3,0,"Emote","Emote"),(3,1,"Lwr_Lip","Lwr_Lip"),
+                 (3,2,"Jaw","Jaw"),(4,1,"Teeth","gui_teeth")]
+        for r, c, l, n in ctrls:
+            b = QtWidgets.QPushButton(l); b.setFixedSize(110, 50)
+            b.clicked.connect(lambda ch=False, name=n: self._on_click(name))
+            self.grid.addWidget(b, r, c)
 
-    def _load_to_list(self, list_widget):
-        list_widget.clear()
+    def _on_click(self, name):
+        if not cmds.objExists(name): return
+        cmds.select(name)
+        self.driven_list.clear()
+        bones = self.builder.get_driven_bones(name)
+        if bones: self.driven_list.addItems(bones)
+
+    def _do_key(self):
         sel = cmds.ls(sl=True)
-        if sel: list_widget.addItems(sel)
+        if not sel: return
+        cb = cmds.channelBox('mainChannelBox', q=True, sma=True)
+        at = "{}.{}".format(sel[0], cb[0] if cb else 'ty')
+        nodes = [self.driven_list.item(i).text() for i in range(self.driven_list.count())]
+        if nodes:
+            self.builder.ai_log = self.ai_log
+            self.builder.set_smart_key(at, nodes)
+
+    def _run_anim(self):
+        self.builder.run_context_test_animation()
+
+    def _run_clean(self):
+        self.builder.clean_test_animation()
 
 class FacePlacementDialog(QtWidgets.QDialog):
     def __init__(self, title, steps, callback, parent=None):
         super(FacePlacementDialog, self).__init__(parent)
-        self.setWindowTitle(title)
-        self.setMinimumSize(250, 350)
-        self.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.WindowStaysOnTopHint)
-        self.setModal(False)
-        self.steps = steps
-        self.callback = callback
-        self.results = []
-        self.step_idx = 0
-        layout = QtWidgets.QVBoxLayout(self)
-        self.label = QtWidgets.QLabel(f"<b>Step {self.step_idx + 1}:</b><br>{self.steps[0]}")
-        self.label.setWordWrap(True)
-        layout.addWidget(self.label)
-        self.btn = QtWidgets.QPushButton("Confirm Selection")
-        self.btn.setFixedHeight(50); self.btn.clicked.connect(self._confirm)
-        layout.addWidget(self.btn)
+        self.setWindowTitle(title); self.setMinimumSize(250, 350)
+        self.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.WindowStaysOnTopHint); self.setModal(False)
+        self.steps = steps; self.callback = callback; self.results = []; self.step_idx = 0
+        l = QtWidgets.QVBoxLayout(self)
+        self.lbl = QtWidgets.QLabel("<b>Step {}:</b><br>{}".format(self.step_idx + 1, self.steps[0])); self.lbl.setWordWrap(True)
+        l.addWidget(self.lbl)
+        self.btn = QtWidgets.QPushButton("Confirm Selection"); self.btn.setFixedHeight(50); self.btn.clicked.connect(self._confirm)
+        l.addWidget(self.btn)
 
     def _confirm(self):
-        sel = cmds.ls(sl=True, fl=True)
-        if not sel or ".vtx" not in sel[0]: return
-        self.results.append(sel[0])
-        self.step_idx += 1
-        if self.step_idx < len(self.steps):
-            self.label.setText(f"<b>Step {self.step_idx + 1}:</b><br>{self.steps[self.step_idx]}")
-        else:
-            try: self.callback(self.results)
-            finally: self.close()
+        s = cmds.ls(sl=True, fl=True)
+        if not s or ".vtx" not in s[0]: return
+        self.results.append(s[0]); self.step_idx += 1
+        if self.step_idx < len(self.steps): self.lbl.setText("<b>Step {}:</b><br>{}".format(self.step_idx + 1, self.steps[self.step_idx]))
+        else: self.callback(self.results); self.close()
 
 class FaceRigTab(QtWidgets.QWidget):
     def __init__(self, parent=None):
-        super(FaceRigTab, self).__init__(parent)
-        self.builder = FaceRigBuilder()
-        self.selector_win = None
-        self._init_ui()
+        super(FaceRigTab, self).__init__(parent); self.builder = FaceRigBuilder(); self.selector = None; self._init_ui()
 
     def _init_ui(self):
         layout = QtWidgets.QVBoxLayout(self)
-        
-        self.ai_log = QtWidgets.QTextEdit()
-        self.ai_log.setReadOnly(True)
+        self.ai_log = QtWidgets.QTextEdit(); self.ai_log.setReadOnly(True); self.ai_log.setMaximumHeight(80)
         self.ai_log.setStyleSheet("background-color: #1e1e1e; color: #81c784;")
-        self.ai_log.setMaximumHeight(80)
-        layout.addWidget(self.ai_log)
+        layout.addWidget(QtWidgets.QLabel("AI Log:")); layout.addWidget(self.ai_log)
 
-        # GUI
-        gui_group = QtWidgets.QGroupBox("GUI Setup")
-        gui_lay = QtWidgets.QVBoxLayout(gui_group)
-        self.btn_open = QtWidgets.QPushButton("Build Face GUI (Selector)")
-        self.btn_open.setFixedHeight(45)
-        self.btn_open.setStyleSheet("background-color: #2e86c1; color: white; font-weight: bold;")
-        self.btn_open.clicked.connect(self.run_open_selector)
-        gui_lay.addWidget(self.btn_open)
-        layout.addWidget(gui_group)
+        g_sdk = QtWidgets.QGroupBox("Stage 5: SDK Setup")
+        kl = QtWidgets.QVBoxLayout(g_sdk)
+        self.btn_gui = QtWidgets.QPushButton("Build Face GUI / Selector")
+        self.btn_gui.setFixedHeight(45); self.btn_gui.setStyleSheet("background-color: #2e86c1; color: white; font-weight: bold;")
+        self.btn_gui.clicked.connect(self.open_selector); kl.addWidget(self.btn_gui)
+        layout.addWidget(g_sdk)
 
-        # Geometry
-        build_group = QtWidgets.QGroupBox("Geometry Build")
-        build_lay = QtWidgets.QVBoxLayout(build_group)
-        
-        self.btn_eyes = QtWidgets.QPushButton("Build Eyes")
-        self.btn_eyes.clicked.connect(self.run_eyes)
-        build_lay.addWidget(self.btn_eyes)
+        g_geo = QtWidgets.QGroupBox("Stage 4: Geometry Generation")
+        gl = QtWidgets.QVBoxLayout(g_geo)
+        self.btn_eyes = QtWidgets.QPushButton("Build Eyes"); self.btn_eyes.clicked.connect(self.run_eyes); gl.addWidget(self.btn_eyes)
+        mouth_l = QtWidgets.QHBoxLayout(); mouth_l.addWidget(QtWidgets.QLabel("Lip Pairs:")); self.pair_spin = QtWidgets.QSpinBox(); self.pair_spin.setRange(1, 3); mouth_l.addWidget(self.pair_spin)
+        gl.addLayout(mouth_l); self.btn_mouth = QtWidgets.QPushButton("Build Mouth"); self.btn_mouth.clicked.connect(self.run_mouth); gl.addWidget(self.btn_mouth)
+        brow_l = QtWidgets.QHBoxLayout(); brow_l.addWidget(QtWidgets.QLabel("Brows:")); self.brow_spin = QtWidgets.QSpinBox(); self.brow_spin.setRange(1, 3); self.brow_spin.setValue(2); brow_l.addWidget(self.brow_spin)
+        gl.addLayout(brow_l); self.btn_brows = QtWidgets.QPushButton("Build Brows"); self.btn_brows.clicked.connect(self.run_brows); gl.addWidget(self.btn_brows)
+        self.btn_jaw = QtWidgets.QPushButton("Create Jaw & Teeth"); self.btn_jaw.clicked.connect(self.run_jaw_teeth); gl.addWidget(self.btn_jaw)
+        layout.addWidget(g_geo); layout.addStretch()
 
-        self.pair_spin = QtWidgets.QSpinBox(); self.pair_spin.setRange(1, 3)
-        build_lay.addWidget(QtWidgets.QLabel("Lip Pairs:"))
-        build_lay.addWidget(self.pair_spin)
-        self.btn_mouth = QtWidgets.QPushButton("Build Mouth & Cheeks")
-        self.btn_mouth.clicked.connect(self.run_mouth)
-        build_lay.addWidget(self.btn_mouth)
-
-        self.brow_spin = QtWidgets.QSpinBox(); self.brow_spin.setRange(1, 3); self.brow_spin.setValue(2)
-        build_lay.addWidget(QtWidgets.QLabel("Brow Joints:"))
-        build_lay.addWidget(self.brow_spin)
-        self.btn_brows = QtWidgets.QPushButton("Build Brows")
-        self.btn_brows.clicked.connect(self.run_brows)
-        build_lay.addWidget(self.btn_brows)
-
-        self.btn_jaw = QtWidgets.QPushButton("Create Jaw & Teeth (Manual)")
-        self.btn_jaw.clicked.connect(self.run_jaw_teeth)
-        build_lay.addWidget(self.btn_jaw)
-
-        layout.addWidget(build_group)
-        layout.addStretch()
-
-    def run_open_selector(self):
+    def open_selector(self):
         if self.builder.import_gui_library():
-            if not self.selector_win:
-                self.selector_win = FaceSelectorWindow(self.builder, self)
-            self.selector_win.show()
+            if not self.selector: self.selector = FaceSelectorWindow(self.builder, self, self.ai_log)
+            self.selector.show()
 
     def run_eyes(self):
-        steps = ["R Upper Inner", "R Upper Center", "R Upper Outer", "R Lower Inner", "R Lower Center", "R Lower Outer"]
-        self.dlg = FacePlacementDialog("Eyes", steps, self._finish_eyes)
-        self.dlg.show()
+        s = ["R Up In", "R Up Mid", "R Up Out", "R Dw In", "R Dw Mid", "R Dw Out"]
+        self.dlg = FacePlacementDialog("Eyes", s, self._finish_eyes); self.dlg.show()
 
-    def _finish_eyes(self, vtxs):
-        bones = ["mchFcrg_right_up_eyeShade1", "mchFcrg_right_up_eyeShade2", "mchFcrg_right_up_eyeShade3",
-                 "mchFcrg_right_dwn_eyeShade1", "mchFcrg_right_dwn_eyeShade2", "mchFcrg_right_dwn_eyeShade3"]
-        for v, b in zip(vtxs, bones):
-            loc = self.builder.create_rig_unit(v, b)
-            self.builder.mirror_unit(loc)
+    def _finish_eyes(self, v):
+        b = ["mchFcrg_right_up_eyeShade1","mchFcrg_right_up_eyeShade2","mchFcrg_right_up_eyeShade3","mchFcrg_right_dwn_eyeShade1","mchFcrg_right_dwn_eyeShade2","mchFcrg_right_dwn_eyeShade3"]
+        for vtx, bone in zip(v, b): l = self.builder.create_rig_unit(vtx, bone); self.builder.mirror_unit(l)
 
     def run_mouth(self):
-        num = self.pair_spin.value()
-        steps = ["Upper Lip CENTER", "Lower Lip CENTER", "R Mouth Corner"]
-        for i in range(num):
-            suffix = f" {i+1}" if i > 0 else ""
-            steps.extend([f"Pair{suffix}: R UPPER Lip", f"Pair{suffix}: R LOWER Lip"])
-        steps.extend(["R UPPER Cheek", "R CENTER Cheek", "R LOWER Cheek"])
-        self.dlg = FacePlacementDialog("Mouth", steps, self._finish_mouth)
-        self.dlg.show()
+        num = self.pair_spin.value(); s = ["Up Lip C", "Dw Lip C", "R Corner"]
+        for i in range(num): sf = " {}".format(i+1) if i > 0 else ""; s.extend(["Pair{}: R UP Lip".format(sf), "Pair{}: R DW Lip".format(sf)])
+        s.extend(["R UP Cheek", "R MID Cheek", "R DW Cheek"])
+        self.dlg = FacePlacementDialog("Mouth", s, self._finish_mouth); self.dlg.show()
 
-    def _finish_mouth(self, vtxs):
-        num = self.pair_spin.value()
-        self.builder.create_rig_unit(vtxs[0], "mchFcrg_cent_up_lip1")
-        self.builder.create_rig_unit(vtxs[1], "mchFcrg_cent_dwn_lip1")
-        loc_c = self.builder.create_rig_unit(vtxs[2], "mchFcrg_right_corner_lip")
-        self.builder.mirror_unit(loc_c)
-        idx = 3
+    def _finish_mouth(self, v):
+        self.builder.create_rig_unit(v[0], "mchFcrg_cent_up_lip1"); self.builder.create_rig_unit(v[1], "mchFcrg_cent_dwn_lip1")
+        lc = self.builder.create_rig_unit(v[2], "mchFcrg_right_corner_lip"); self.builder.mirror_unit(lc)
+        idx = 3; num = self.pair_spin.value()
         for i in range(num):
-            suf = f"{i+1}" if i > 0 else ""
-            l_u = self.builder.create_rig_unit(vtxs[idx], f"mchFcrg_right_up_lip{suf}")
-            l_d = self.builder.create_rig_unit(vtxs[idx+1], f"mchFcrg_right_dwn_lip{suf}")
-            self.builder.mirror_unit(l_u); self.builder.mirror_unit(l_d); idx += 2
-        for name in ["mchFcrg_right_up_cheek", "mchFcrg_right_cntr_cheek", "mchFcrg_right_dwn_cheek"]:
-            l_ch = self.builder.create_rig_unit(vtxs[idx], name)
-            self.builder.mirror_unit(l_ch); idx += 1
+            sf = "{}".format(i+1) if i > 0 else ""; u = self.builder.create_rig_unit(v[idx], "mchFcrg_right_up_lip{}".format(sf)); d = self.builder.create_rig_unit(v[idx+1], "mchFcrg_right_dwn_lip{}".format(sf))
+            self.builder.mirror_unit(u); self.builder.mirror_unit(d); idx += 2
+        for n in ["mchFcrg_right_up_cheek", "mchFcrg_right_cntr_cheek", "mchFcrg_right_dwn_cheek"]:
+            l = self.builder.create_rig_unit(v[idx], n); self.builder.mirror_unit(l); idx += 1
 
     def run_brows(self):
-        num = self.brow_spin.value()
-        steps = [f"Brow Joint {i+1} (R side)" for i in range(num)]
-        self.dlg = FacePlacementDialog("Brows", steps, self._finish_brows)
-        self.dlg.show()
+        n = self.brow_spin.value(); s = ["Brow {} (R)".format(i+1) for i in range(n)]
+        self.dlg = FacePlacementDialog("Brows", s, self._finish_brows); self.dlg.show()
 
-    def _finish_brows(self, vtxs):
-        for i, vtx in enumerate(vtxs):
-            loc = self.builder.create_rig_unit(vtx, f"mchFcrg_right_Brow{i+1}")
-            self.builder.mirror_unit(loc)
+    def _finish_brows(self, v):
+        for i, vtx in enumerate(v): l = self.builder.create_rig_unit(vtx, "mchFcrg_right_Brow{}".format(i+1)); self.builder.mirror_unit(l)
 
     def run_jaw_teeth(self):
-        self.builder.create_rig_unit(None, "mchFcrg_jaw", pos_override=[0, 0, 0])
-        self.builder.create_rig_unit(None, "mchFcrg_teeth", pos_override=[0, 1, 0])
+        self.builder.create_rig_unit(None, "mchFcrg_jaw", [0, 0, 0]); self.builder.create_rig_unit(None, "mchFcrg_teeth", [0, 1, 0])

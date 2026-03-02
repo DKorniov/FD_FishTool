@@ -2,61 +2,191 @@
 import maya.cmds as cmds
 import maya.api.OpenMaya as om
 import os
-import re
+import json
 
 class FaceRigBuilder:
     def __init__(self):
         self.main_group = "fclRig_lctr_grp"
-        self.setup_grp = "Setup_grp"
-        # Полный список контролов для манипуляций
-        self.all_test_ctrls = [
-            "R_Lwr_EyeLid", "L_Lwr_EyeLid", "L_Upp_EyeLid", "R_Upp_EyeLid", 
-            "Emote", "Sync", "Jaw", "gui_teeth", "Lwr_Lip", "Upr_Lip"
-        ]
-        self.eyelid_group = ["R_Lwr_EyeLid", "L_Lwr_EyeLid", "L_Upp_EyeLid", "R_Upp_EyeLid"]
-        self.lip_group = ["Lwr_Lip", "Upr_Lip"]
+        self.config_dir = os.path.join(cmds.internalVar(usd=True), "FD_FishTool", "data")
+        self.anim_path = os.path.join(self.config_dir, "face_test_anim.json")
+        self.config_path = os.path.join(self.config_dir, "face_rig_config.json")
+        self.test_ctrls = ["R_Lwr_EyeLid", "L_Lwr_EyeLid", "L_Upp_EyeLid", "R_Upp_EyeLid", 
+                           "Emote", "Sync", "Jaw", "gui_teeth", "Lwr_Lip", "Upr_Lip"]
+        self.ai_log = None
 
-    def ensure_hierarchy(self):
-        if not cmds.objExists(self.setup_grp):
-            cmds.group(em=True, name=self.setup_grp)
-        if not cmds.objExists(self.main_group):
-            cmds.group(em=True, name=self.main_group, parent=self.setup_grp)
+    def _log(self, msg):
+        formatted = "> AI: {}".format(msg)
+        print(formatted)
+        if self.ai_log: self.ai_log.append(formatted)
 
-    def _apply_visual_settings(self, node, side):
-        cmds.setAttr(f"{node}.overrideEnabled", 1)
-        cmds.setAttr(f"{node}.useOutlinerColor", 1)
-        if side == "right":
-            cmds.setAttr(f"{node}.overrideColor", 13) # Red
-            cmds.setAttr(f"{node}.outlinerColor", 1, 0, 0)
-        elif side == "left":
-            cmds.setAttr(f"{node}.overrideColor", 6) # Blue
-            cmds.setAttr(f"{node}.outlinerColor", 0, 0.6, 1)
-        else: # center
-            cmds.setAttr(f"{node}.overrideColor", 17) # Yellow
-            cmds.setAttr(f"{node}.outlinerColor", 1, 1, 0)
+    # --- СИСТЕМА ПРОКСИ (БЕЗОПАСНЫЙ SNAP) ---
+    def _create_proxies(self, nodes, prefix="tmp_"):
+        proxies = []
+        for n in nodes:
+            loc = cmds.spaceLocator(name=prefix + n)[0]
+            cmds.xform(loc, matrix=cmds.xform(n, q=True, matrix=True, ws=True), ws=True)
+            proxies.append(loc)
+        return proxies
 
-    def get_vertex_pos(self, vtx):
-        sel = om.MSelectionList()
-        sel.add(vtx)
-        path, comp = sel.getComponent(0)
-        it = om.MItMeshVertex(path, comp)
-        p = it.position(om.MSpace.kWorld)
-        return [p.x, p.y, p.z]
+    def _snap_to(self, nodes, targets):
+        for n, t in zip(nodes, targets):
+            cmds.xform(n, matrix=cmds.xform(t, q=True, matrix=True, ws=True), ws=True)
+
+    # --- ГЛАВНАЯ ЛОГИКА KEY (11 ПУНКТОВ С ОЧИСТКОЙ) ---
+    def set_smart_key(self, driver_attr, driven_nodes):
+        drv_obj, attr = driver_attr.split('.')
+        drv_val = cmds.getAttr(driver_attr)
+        
+        # 1. Запоминаем правую позицию
+        r_proxies = self._create_proxies(driven_nodes, "proxy_R_")
+        
+        # 2-3. Проверка и установка 0 для правой стороны
+        # ВАЖНО: Используем fc (floatChange) для запроса SDK
+        existing = cmds.keyframe(driven_nodes[0], at='tx', q=True, fc=True) or []
+        has_zero = any(abs(k - 0.0) < 0.001 for k in existing)
+
+        if not has_zero:
+            self._log("Zero key missing on Right side. Establishing clean Build Pose.")
+            for n in driven_nodes: self._key_6(driver_attr, 0.0, n, zero=True)
+            
+        # 4-5. Возврат и ключ
+        self._snap_to(driven_nodes, r_proxies)
+        for n in driven_nodes: self._key_6(driver_attr, drv_val, n)
+
+        # 6. Mirror Position (Зеркалим правую сторону на левую)
+        side_pref = "L_" if "R_" in drv_obj else ("left" if "right" in drv_obj else None)
+        if side_pref:
+            m_ctrl = drv_obj.replace("R_", "L_").replace("right", "left")
+            if cmds.objExists(m_ctrl):
+                self._log("Mirroring to Left side: {}...".format(m_ctrl))
+                self.mirror_drivens_logic(driven_nodes) # Копирует положение mch_R на mch_L
+                
+                l_bones = [b.replace("right", "left") for b in driven_nodes if "right" in b]
+                l_bones = [b for b in l_bones if cmds.objExists(b)]
+                
+                if l_bones:
+                    # 7. Запоминаем новую зеркальную позу левых костей
+                    l_proxies = self._create_proxies(l_bones, "proxy_L_")
+                    l_attr = "{}.{}".format(m_ctrl, attr)
+                    l_val = cmds.getAttr(l_attr)
+                    
+                    # 8-9. Проверка и установка 0 для левого контрола
+                    l_ex = cmds.keyframe(l_bones[0], at='tx', q=True, fc=True) or []
+                    if not any(abs(k - 0.0) < 0.001 for k in l_ex):
+                        self._log("Setting Zero key for Left control: {}".format(m_ctrl))
+                        for ln in l_bones: self._key_6(l_attr, 0.0, ln, zero=True)
+                    
+                    # 10-11. Возврат и ключ для левой стороны
+                    self._snap_to(l_bones, l_proxies)
+                    for ln in l_bones: self._key_6(l_attr, l_val, ln)
+                    cmds.delete(l_proxies)
+
+        elif "Jaw" in drv_obj or "teeth" in drv_obj:
+            if abs(drv_val) > 0.001: self._apply_jaw_inversion(driver_attr, drv_val, driven_nodes)
+
+        cmds.delete(r_proxies)
+        self._log("Smart KEY process finished.")
+
+    def _key_6(self, drv_at, drv_val, node, zero=False):
+        """Ставит ключ на 6 каналов, ПРЕДВАРИТЕЛЬНО ОЧИЩАЯ СВЯЗИ при установке 0."""
+        attrs = ['tx','ty','tz','rx','ry','rz']
+        for a in attrs:
+            attr_full = "{}.{}".format(node, a)
+            
+            # Если мы ставим 0 (билд позу) и на канале есть связь, которая не является нашей кривой - удаляем её.
+            # Это уберет BlendWeighted ноды.
+            if zero:
+                incoming = cmds.listConnections(attr_full, s=True, d=False)
+                if incoming:
+                    # Проверяем, не наша ли это уже SDK кривая
+                    if not any(cmds.nodeType(x).startswith('animCurve') for x in incoming):
+                        cmds.setAttr(attr_full, lock=False)
+                        try: cmds.disconnectAttr(cmds.listConnections(attr_full, p=True)[0], attr_full)
+                        except: pass
+
+            v = 0 if zero else cmds.getAttr(attr_full)
+            cmds.setDrivenKeyframe(attr_full, cd=drv_at, dv=drv_val, v=v)
+
+    def mirror_drivens_logic(self, nodes=None):
+        """Зеркалирование через инверсию мировой матрицы (самый точный способ)."""
+        targets = nodes if nodes else cmds.ls('mchFcrg*right*', type='joint')
+        for r in targets:
+            if 'right' not in r: continue
+            l = r.replace('right', 'left')
+            if cmds.objExists(l):
+                # Копируем позицию
+                pos = cmds.xform(r, q=True, t=True, ws=True)
+                cmds.xform(l, t=[-pos[0], pos[1], pos[2]], ws=True)
+                
+                # Копируем ротацию и инвертируем оси для симметрии
+                # Для стандартного рига: Mirror Rotation X-axis
+                rot = cmds.xform(r, q=True, ro=True, os=True)
+                # Инвертируем Y и Z ротацию для сохранения симметричного поведения
+                cmds.xform(l, ro=[rot[0], -rot[1], -rot[2]], os=True)
+
+    # --- ОСТАЛЬНЫЕ МЕТОДЫ (Без изменений) ---
+    def load_json(self, path):
+        if os.path.exists(path):
+            with open(path, 'r') as f: return json.load(f)
+        return {}
+
+    def get_driven_bones(self, ctrl_name):
+        config = self.load_json(self.config_path)
+        if ctrl_name not in config: return []
+        patterns = config[ctrl_name].get("driven", [])
+        actual = []
+        for p in patterns:
+            found = cmds.ls(p, type="joint") if "*" in p else ([p] if cmds.objExists(p) else [])
+            actual.extend(found)
+        return sorted(list(set(actual)))
+
+    def clean_test_animation(self):
+        c = [x for x in self.test_ctrls if cmds.objExists(x)]
+        if c: 
+            cmds.cutKey(c, s=True)
+            for ctrl in c:
+                for a in ['tx','ty','tz','rx','ry','rz']:
+                    if cmds.getAttr(ctrl+"."+a, settable=True): cmds.setAttr(ctrl+"."+a, 0)
+
+    def run_context_test_animation(self):
+        self.clean_test_animation()
+        sel = cmds.ls(sl=True)
+        if not sel: return
+        data = self.load_json(self.anim_path)
+        to_anim = []
+        if any(x in sel for x in ["EyeLid"]): to_anim = [x for x in self.test_ctrls if "EyeLid" in x]
+        elif any(x in sel for x in ["Lip"]): to_anim = ["Lwr_Lip", "Upr_Lip"]
+        else: to_animate = [sel[0]]
+
+        for ctrl in to_animate:
+            if ctrl in data:
+                d = data[ctrl]
+                for i, f in enumerate(d.get("frames", [])):
+                    if "ty" in d: cmds.setKeyframe(ctrl, at="ty", v=d["ty"][i], t=f)
+                    if "tx" in d: cmds.setKeyframe(ctrl, at="tx", v=d["tx"][i], t=f)
+        cmds.currentTime(1)
+
+    def import_gui_library(self):
+        lib = os.path.join(self.config_dir, "face_controls_library.ma")
+        if os.path.exists(lib) and not cmds.objExists("GUI_grp"):
+            cmds.file(lib, i=True, type="mayaAscii", rnn=True)
+        return cmds.objExists("GUI_grp")
 
     def create_rig_unit(self, vtx, bone_name, pos_override=None):
-        self.ensure_hierarchy()
-        pos = pos_override if pos_override else self.get_vertex_pos(vtx)
-        loc_name = bone_name.replace("mchFcrg_", "locAlign_fcrg_")
-        if cmds.objExists(loc_name): cmds.delete(loc_name)
-        loc = cmds.spaceLocator(name=loc_name)[0]
-        cmds.xform(loc, t=(pos[0], pos[1], pos[2]), ws=True)
-        cmds.parent(loc, self.main_group)
-        side = "right" if "right" in loc_name else ("left" if "left" in loc_name else "center")
-        self._apply_visual_settings(loc, side)
-        cmds.select(cl=True)
-        joint = cmds.joint(name=bone_name)
-        cmds.parent(joint, loc)
-        for attr in [".t", ".r", ".jo"]: cmds.setAttr(joint + attr, 0, 0, 0)
+        if not cmds.objExists("fclRig_lctr_grp"):
+            if not cmds.objExists("Setup_grp"): cmds.group(em=True, name="Setup_grp")
+            cmds.group(em=True, name="fclRig_lctr_grp", parent="Setup_grp")
+        if vtx:
+            sel = om.MSelectionList(); sel.add(vtx)
+            path, comp = sel.getComponent(0); it = om.MItMeshVertex(path, comp)
+            p = it.position(om.MSpace.kWorld); pos = [p.x, p.y, p.z]
+        else: pos = pos_override or [0, 0, 0]
+        loc = cmds.spaceLocator(name=bone_name.replace("mchFcrg_", "locAlign_fcrg_"))[0]
+        cmds.xform(loc, t=pos, ws=True); cmds.parent(loc, "fclRig_lctr_grp")
+        cmds.setAttr(loc+".overrideEnabled", 1); col = 13 if "right" in loc else (6 if "left" in loc else 17)
+        cmds.setAttr(loc+".overrideColor", col)
+        cmds.select(cl=True); j = cmds.joint(name=bone_name); cmds.parent(j, loc)
+        for a in [".t",".r",".jo"]: cmds.setAttr(j+a, 0,0,0)
         return loc
 
     def mirror_unit(self, source_loc):
@@ -64,105 +194,7 @@ class FaceRigBuilder:
         target = source_loc.replace("right", "left")
         if cmds.objExists(target): cmds.delete(target)
         new_loc = cmds.duplicate(source_loc, name=target, rc=True)[0]
-        cmds.setAttr(f"{new_loc}.tx", -cmds.getAttr(f"{new_loc}.tx"))
-        cmds.setAttr(f"{new_loc}.rx", 180)
-        self._apply_visual_settings(new_loc, "left")
+        cmds.setAttr(new_loc+".tx", -cmds.getAttr(new_loc+".tx")); cmds.setAttr(new_loc+".rx", 180)
+        cmds.setAttr(new_loc+".overrideColor", 6)
         child = cmds.listRelatives(new_loc, children=True, type="joint")
         if child: cmds.rename(child[0], target.replace("locAlign_fcrg_", "mchFcrg_"))
-
-    # --- ЗЕРКАЛИРОВАНИЕ ПОЛОЖЕНИЯ КОСТЕЙ (Face_drivens_mirror.py) ---
-    def mirror_drivens_logic(self):
-        """Зеркалирует положение mch костей с правой стороны на левую."""
-        all_joints = cmds.ls('mchFcrg*right*', type='joint')
-        if not all_joints:
-            cmds.warning("No right-side mechanical joints found.")
-            return
-
-        for start_bone in all_joints:
-            end_bone = start_bone.replace('right', 'left')
-            if not cmds.objExists(end_bone): continue
-            
-            # Получаем позицию и вращение
-            ws_pos = cmds.xform(start_bone, q=True, t=True, ws=True)
-            os_rot = cmds.xform(start_bone, q=True, r=True, os=True)
-            
-            # Применяем к левой стороне с инверсией X
-            cmds.xform(end_bone, t=(-ws_pos[0], ws_pos[1], ws_pos[2]), ws=True)
-            cmds.xform(end_bone, ro=os_rot, os=True)
-        
-        print("> AI: Drivens positions mirrored (Right to Left).")
-
-    # --- ТЕСТОВАЯ АНИМАЦИЯ И ОЧИСТКА ---
-    def clean_test_animation(self):
-        """Удаляет ключи и возвращает атрибуты в 0."""
-        existing = [c for c in self.all_test_ctrls if cmds.objExists(c)]
-        if not existing: return
-        
-        cmds.cutKey(existing, s=True)
-        for ctrl in existing:
-            for attr in ['tx', 'ty', 'tz', 'rx', 'ry', 'rz']:
-                if cmds.getAttr(f"{ctrl}.{attr}", settable=True):
-                    try: cmds.setAttr(f"{ctrl}.{attr}", 0)
-                    except: pass
-        print("> AI: Test animation cleaned. Attributes reset to 0.")
-
-    def run_context_test_animation(self):
-        self.clean_test_animation()
-        sel = cmds.ls(sl=True)
-        if not sel: return
-        
-        if any(c in sel for c in self.eyelid_group): self._anim_eyelids()
-        elif any(c in sel for c in self.lip_group): self._anim_lips()
-        elif "Sync" in sel: self._anim_sync()
-        elif "Emote" in sel: self._anim_emote()
-        elif "Jaw" in sel: self._anim_jaw()
-        elif "gui_teeth" in sel: self._anim_teeth()
-
-    def _anim_eyelids(self):
-        ctrls = [c for c in self.eyelid_group if cmds.objExists(c)]
-        cmds.setKeyframe(ctrls, t=1)
-        cmds.currentTime(3); cmds.move(0, 4.479, 0, ["R_Upp_EyeLid", "L_Upp_EyeLid"], r=True, os=True, wd=True); cmds.setKeyframe(ctrls, t=3)
-        cmds.currentTime(5); cmds.move(0, 2.246, 0, ["L_Lwr_EyeLid", "R_Lwr_EyeLid"], r=True, os=True, wd=True); cmds.setKeyframe(ctrls, t=5)
-        cmds.currentTime(7); cmds.move(0, -3.305, 0, ["R_Upp_EyeLid", "L_Upp_EyeLid"], r=True, os=True, wd=True); cmds.setKeyframe(ctrls, t=7)
-        cmds.currentTime(9); cmds.move(0, -4.293, 0, ["L_Lwr_EyeLid", "R_Lwr_EyeLid"], r=True, os=True, wd=True); cmds.setKeyframe(ctrls, t=9)
-
-    def _anim_sync(self):
-        c = "Sync"
-        cmds.setKeyframe(c, t=1)
-        cmds.currentTime(3); cmds.move(0, -2.780, 0, c, r=True); cmds.setKeyframe(c, t=3)
-        cmds.currentTime(5); cmds.move(0, 3.426, 0, c, r=True); cmds.setKeyframe(c, t=5)
-        cmds.currentTime(6); cmds.setAttr(f"{c}.tx", 0); cmds.setAttr(f"{c}.ty", 0); cmds.setKeyframe(c, at=["tx", "ty"], t=6)
-        cmds.currentTime(8); cmds.move(4.928, 0, 0, c, r=True); cmds.setKeyframe(c, t=8)
-        cmds.currentTime(10); cmds.move(-13.599, 0, 0, c, r=True); cmds.setKeyframe(c, t=10)
-
-    def _anim_lips(self):
-        ctrls = [c for c in self.lip_group if cmds.objExists(c)]
-        cmds.setKeyframe(ctrls, t=1)
-        cmds.currentTime(3); cmds.move(0, 4.259, 0, ctrls, r=True); cmds.setKeyframe(ctrls, t=3)
-        cmds.currentTime(5); cmds.move(0, -7.169, 0, ctrls, r=True); cmds.setKeyframe(ctrls, t=5)
-
-    def _anim_emote(self):
-        c = "Emote"; cmds.setKeyframe(c, t=1)
-        cmds.currentTime(3); cmds.move(0, 4.200, 0, c, r=True); cmds.setKeyframe(c, t=3)
-        cmds.currentTime(5); cmds.move(0, -7.427, 0, c, r=True); cmds.setKeyframe(c, t=5)
-
-    def _anim_jaw(self):
-        c = "Jaw"; cmds.setKeyframe(c, t=1)
-        cmds.currentTime(3); cmds.move(6.676, 0, 0, c, r=True); cmds.setKeyframe(c, t=3)
-        cmds.currentTime(5); cmds.move(-5.456, 0, 0, c, r=True); cmds.setKeyframe(c, t=5)
-
-    def _anim_teeth(self):
-        c = "gui_teeth"; cmds.setKeyframe(c, t=1)
-        cmds.currentTime(3); cmds.move(0, 3.015, 0, c, r=True); cmds.setKeyframe(c, t=3)
-        cmds.currentTime(4); cmds.setAttr(f"{c}.ty", 0); cmds.setKeyframe(c, t=4)
-        cmds.currentTime(6); cmds.move(5.268, 0, 0, c, r=True); cmds.setKeyframe(c, t=6)
-        cmds.currentTime(8); cmds.move(-8.072, 0, 0, c, r=True); cmds.setKeyframe(c, t=8)
-
-    def import_gui_library(self):
-        if cmds.objExists("GUI_grp"): return True
-        scripts_dir = cmds.internalVar(usd=True)
-        lib_path = os.path.join(scripts_dir, "FD_FishTool", "data", "face_controls_library.ma")
-        if os.path.exists(lib_path):
-            cmds.file(lib_path, i=True, type="mayaAscii", rnn=True)
-            return True
-        return False
