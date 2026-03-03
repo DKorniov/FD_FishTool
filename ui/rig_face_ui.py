@@ -10,7 +10,8 @@ class FaceSelectorWindow(QtWidgets.QDialog):
         self.ai_log = log_widget
         self.setWindowTitle("Face Selector & SMART KEY")
         self.setMinimumSize(850, 550)
-        self.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.WindowStaysOnTopHint); self.setModal(False)
+        self.setWindowFlags(QtCore.Qt.Window) # Maya-style window
+        self.setModal(False)
         
         main_lay = QtWidgets.QHBoxLayout(self)
         sel_grp = QtWidgets.QGroupBox("Selector")
@@ -19,8 +20,9 @@ class FaceSelectorWindow(QtWidgets.QDialog):
         main_lay.addWidget(sel_grp, stretch=2)
 
         right_panel = QtWidgets.QVBoxLayout()
-        right_panel.addWidget(QtWidgets.QLabel("<b>Driven Bones:</b>"))
+        right_panel.addWidget(QtWidgets.QLabel("<b>Driven Bones (Auto-load):</b>"))
         self.driven_list = QtWidgets.QListWidget()
+        self.driven_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         right_panel.addWidget(self.driven_list)
         
         self.btn_key = QtWidgets.QPushButton("KEY")
@@ -59,18 +61,19 @@ class FaceSelectorWindow(QtWidgets.QDialog):
     def _do_key(self):
         sel = cmds.ls(sl=True)
         if not sel: return
-        cb = cmds.channelBox('mainChannelBox', q=True, sma=True)
-        at = "{}.{}".format(sel[0], cb[0] if cb else 'ty')
         nodes = [self.driven_list.item(i).text() for i in range(self.driven_list.count())]
         if nodes:
             self.builder.ai_log = self.ai_log
-            self.builder.set_smart_key(at, nodes)
+            # Передаем только объект, каналы возьмем из JSON анимации
+            self.builder.set_smart_key(sel[0], nodes)
 
     def _run_anim(self):
         self.builder.run_context_test_animation()
+        if self.ai_log: self.ai_log.append("> AI: Test animation generated.")
 
     def _run_clean(self):
         self.builder.clean_test_animation()
+        if self.ai_log: self.ai_log.append("> AI: Animation cleaned.")
 
 class FacePlacementDialog(QtWidgets.QDialog):
     def __init__(self, title, steps, callback, parent=None):
@@ -101,12 +104,9 @@ class FaceRigTab(QtWidgets.QWidget):
         self.ai_log.setStyleSheet("background-color: #1e1e1e; color: #81c784;")
         layout.addWidget(QtWidgets.QLabel("AI Log:")); layout.addWidget(self.ai_log)
 
-        g_sdk = QtWidgets.QGroupBox("Stage 5: SDK Setup")
-        kl = QtWidgets.QVBoxLayout(g_sdk)
         self.btn_gui = QtWidgets.QPushButton("Build Face GUI / Selector")
         self.btn_gui.setFixedHeight(45); self.btn_gui.setStyleSheet("background-color: #2e86c1; color: white; font-weight: bold;")
-        self.btn_gui.clicked.connect(self.open_selector); kl.addWidget(self.btn_gui)
-        layout.addWidget(g_sdk)
+        self.btn_gui.clicked.connect(self.open_selector); layout.addWidget(self.btn_gui)
 
         g_geo = QtWidgets.QGroupBox("Stage 4: Geometry Generation")
         gl = QtWidgets.QVBoxLayout(g_geo)
@@ -152,7 +152,7 @@ class FaceRigTab(QtWidgets.QWidget):
         self.dlg = FacePlacementDialog("Brows", s, self._finish_brows); self.dlg.show()
 
     def _finish_brows(self, v):
-        for i, vtx in enumerate(v): l = self.builder.create_rig_unit(vtx, "mchFcrg_right_Brow{}".format(i+1)); self.builder.mirror_unit(l)
+        for i, vtx in enumerate(v): l = self.builder.create_rig_unit(vtx, f"mchFcrg_right_Brow{i+1}"); self.builder.mirror_unit(l)
 
     def run_jaw_teeth(self):
         self.builder.create_rig_unit(None, "mchFcrg_jaw", [0, 0, 0]); self.builder.create_rig_unit(None, "mchFcrg_teeth", [0, 1, 0])
