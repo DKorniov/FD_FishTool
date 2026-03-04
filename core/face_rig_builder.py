@@ -13,11 +13,14 @@ class FaceRigBuilder(object):
                            "Emote", "Sync", "Jaw", "gui_teeth", "Lwr_Lip", "Upr_Lip"]
         self.ai_log = None
 
-        # Маппинг перекрестного зеркалирования для джойстиков
+        # Маппинг перекрестного зеркалирования для джойстиков      
+        # ТЕПЕРЬ ВСЕ ДЖОЙСТИКИ РАБОТАЮТ ОДИНАКОВО
+        # pos_y (Right Up/Smile) <-> pos_x (Left Up/Smile)
+        # neg_x (Right Down/Sad) <-> neg_y (Left Down/Sad)
         self.mirror_map = {
             "Emote": {"pos_y": "pos_x", "pos_x": "pos_y", "neg_x": "neg_y", "neg_y": "neg_x"},
-            "Upr_Lip": {"pos_y": "neg_y", "neg_y": "pos_y", "neg_x": "pos_x", "pos_x": "neg_x"},
-            "Lwr_Lip": {"pos_y": "neg_y", "neg_y": "pos_y", "neg_x": "pos_x", "pos_x": "neg_x"}
+            "Upr_Lip": {"pos_y": "pos_x", "pos_x": "pos_y", "neg_x": "neg_y", "neg_y": "neg_x"},
+            "Lwr_Lip": {"pos_y": "pos_x", "pos_x": "pos_y", "neg_x": "neg_y", "neg_y": "neg_x"}
         }
 
     def _log(self, msg):
@@ -197,20 +200,28 @@ class FaceRigBuilder(object):
         self._log("Quadrant SDK Process: {}...".format(driver_obj))
         tx_val = cmds.getAttr(driver_obj + ".tx")
         ty_val = cmds.getAttr(driver_obj + ".ty")
+        
+        # 1. Определение активного квадранта (с приоритетом оси Y)
         active_q = None
         if abs(ty_val) > 0.001: active_q = "pos_y" if ty_val > 0 else "neg_y"
         elif abs(tx_val) > 0.001: active_q = "pos_x" if tx_val > 0 else "neg_x"
-        if not active_q: return
+        
+        if not active_q:
+            self._log("Error: Контроллер в нуле. Сначала задайте позу.")
+            return
 
+        # 2. Поиск "правого" источника
+        # Если мы в "левом" квадранте, ищем его правую пару
         src_q = active_q
         if not any("right" in b for b in ctrl_config.get(active_q, [])):
             for q, partner in self.mirror_map.get(driver_obj, {}).items():
                 if partner == active_q: src_q = q; break
 
+        # 3. ЗАХВАТ ПОЗЫ ПРАВОЙ СТОРОНЫ
         r_bones = self.get_driven_bones(driver_obj, src_q)
         r_prox = self._create_proxies(r_bones, "tmp_quad_R_")
 
-        # Total Zero
+        # 4. ГЛОБАЛЬНЫЙ СБРОС (Бетонируем 0)
         all_bones = self.get_driven_bones(driver_obj)
         for chan in ["tx", "ty"]:
             drv_at = "{}.{}".format(driver_obj, chan)
@@ -219,27 +230,35 @@ class FaceRigBuilder(object):
             for n in all_bones: self._key_6(drv_at, 0.0, n)
             cmds.setAttr(drv_at, old_v)
 
-        # Work Keys
+        # 5. УСТАНОВКА РАБОЧИХ КЛЮЧЕЙ (ПРАВО)
         src_chan = "ty" if "y" in src_q else "tx"
         src_val = 1.5 if "pos" in src_q else -1.5 
         drv_at = "{}.{}".format(driver_obj, src_chan)
+        
         self._snap_to(r_bones, r_prox)
         for n in r_bones: self._key_6(drv_at, src_val, n)
 
-        # Cross-Mirror
+        # 6. ПЕРЕКРЕСТНОЕ ЗЕРКАЛИРОВАНИЕ (ЛЕВО)
         mirror_q = self.mirror_map.get(driver_obj, {}).get(src_q)
         if mirror_q:
+            self._log("Mirroring {} -> {}".format(src_q, mirror_q))
             self.mirror_drivens_logic(r_bones)
             l_bones = [b.replace("right", "left") if "right" in b else b for b in r_bones]
             l_bones = [b for b in l_bones if cmds.objExists(b)]
             l_prox = self._create_proxies(l_bones, "tmp_quad_L_")
+            
             m_chan = "ty" if "y" in mirror_q else "tx"
             m_drv_at = "{}.{}".format(driver_obj, m_chan)
-            m_val = -src_val if driver_obj != "Emote" else src_val
+            
+            # УБРАНА ИНВЕРСИЯ: Знак теперь определяется именем квадранта цели (pos/neg)
+            m_val = 1.5 if "pos" in mirror_q else -1.5
+            
             self._snap_to(l_bones, l_prox)
             for ln in l_bones: self._key_6(m_drv_at, m_val, ln)
             cmds.delete(l_prox)
+
         cmds.delete(r_prox)
+        self._log("Quadrant SDK complete.")
 
     def _key_6(self, drv_at, drv_val, node):
         for a in ['tx','ty','tz','rx','ry','rz']:
