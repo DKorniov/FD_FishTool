@@ -45,52 +45,36 @@
       "mchFcrg_right_cntr_cheek",
       "mchFcrg_right_dwn_cheek"
     ]
-  },  
+  },
   "Upr_Lip": {
-    "pos_y": ["mchFcrg_cent_up_lip1", "mchFcrg_right_up_lip*"],
-    "neg_x": ["mchFcrg_cent_up_lip1", "mchFcrg_right_up_lip*"],
-    "neg_y": ["mchFcrg_cent_up_lip1", "mchFcrg_left_up_lip*"],
-    "pos_x": ["mchFcrg_cent_up_lip1", "mchFcrg_left_up_lip*"]
+    "driven": [
+      "mchFcrg_cent_up_lip1",
+      "mchFcrg_right_up_lip*",
+      "mchFcrg_left_up_lip*"
+    ]
   },
   "Lwr_Lip": {
-    "pos_y": ["mchFcrg_cent_dwn_lip1", "mchFcrg_right_dwn_lip*"],
-    "neg_x": ["mchFcrg_cent_dwn_lip1", "mchFcrg_right_dwn_lip*"],
-    "neg_y": ["mchFcrg_cent_dwn_lip1", "mchFcrg_left_dwn_lip*"],
-    "pos_x": ["mchFcrg_cent_dwn_lip1", "mchFcrg_left_dwn_lip*"]
-  },
-  
-  "Emote": {
-    "pos_y": [
-      "mchFcrg_right_up_lip*",
+    "driven": [
+      "mchFcrg_cent_dwn_lip1",
       "mchFcrg_right_dwn_lip*",
-      "mchFcrg_right_corner_lip",      
-      "mchFcrg_right_up_cheek",
-      "mchFcrg_right_cntr_cheek",      
-      "mchFcrg_right_dwn_cheek"
-    ],
-    "pos_x": [
-      "mchFcrg_left_up_lip*",
-      "mchFcrg_left_dwn_lip*",      
-      "mchFcrg_left_corner_lip",            
-      "mchFcrg_left_up_cheek",
-      "mchFcrg_left_cntr_cheek",
-      "mchFcrg_left_dwn_cheek"
-    ],
-    "neg_y": [
-      "mchFcrg_left_up_lip*",
-      "mchFcrg_left_dwn_lip*",      
-      "mchFcrg_left_corner_lip",            
-      "mchFcrg_left_up_cheek",
-      "mchFcrg_left_cntr_cheek",
-      "mchFcrg_left_dwn_cheek"
-    ],
-    "neg_x": [
+      "mchFcrg_left_dwn_lip*"
+    ]
+  },
+  "Emote": {
+    "driven": [
       "mchFcrg_right_up_lip*",
       "mchFcrg_right_dwn_lip*",
       "mchFcrg_right_corner_lip",      
       "mchFcrg_right_up_cheek",
       "mchFcrg_right_cntr_cheek",
-      "mchFcrg_right_dwn_cheek"
+      "mchFcrg_right_corner_lip",
+      "mchFcrg_right_dwn_cheek",      
+      "mchFcrg_left_up_lip*",
+      "mchFcrg_left_dwn_lip*",      
+      "mchFcrg_left_corner_lip",            
+      "mchFcrg_left_up_cheek",
+      "mchFcrg_left_cntr_cheek",
+      "mchFcrg_left_dwn_cheek"
     ]
   },
   "Jaw": {

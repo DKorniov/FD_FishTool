@@ -13,6 +13,13 @@ class FaceRigBuilder(object):
                            "Emote", "Sync", "Jaw", "gui_teeth", "Lwr_Lip", "Upr_Lip"]
         self.ai_log = None
 
+        # Маппинг перекрестного зеркалирования для джойстиков
+        self.mirror_map = {
+            "Emote": {"pos_y": "pos_x", "pos_x": "pos_y", "neg_x": "neg_y", "neg_y": "neg_x"},
+            "Upr_Lip": {"pos_y": "neg_y", "neg_y": "pos_y", "neg_x": "pos_x", "pos_x": "neg_x"},
+            "Lwr_Lip": {"pos_y": "neg_y", "neg_y": "pos_y", "neg_x": "pos_x", "pos_x": "neg_x"}
+        }
+
     def _log(self, msg):
         formatted = "> AI: {}".format(msg)
         print(formatted)
@@ -23,8 +30,25 @@ class FaceRigBuilder(object):
             with open(path, 'r') as f: return json.load(f)
         return {}
 
+    def get_driven_bones(self, ctrl_name, quadrant=None):
+        config = self.load_json(self.config_path)
+        if ctrl_name not in config: return []
+        patterns = []
+        node_cfg = config[ctrl_name]
+        if quadrant:
+            patterns = node_cfg.get(quadrant, [])
+        elif "driven" in node_cfg:
+            patterns = node_cfg["driven"]
+        else:
+            for q in ["pos_y", "neg_y", "pos_x", "neg_x"]:
+                patterns.extend(node_cfg.get(q, []))
+        actual = []
+        for p in patterns:
+            found = cmds.ls(p, type="joint") if "*" in p else ([p] if cmds.objExists(p) else [])
+            actual.extend(found)
+        return sorted(list(set(actual)))
+
     def _get_sdk_curve(self, driven_attr, driver_attr):
-        """Находит кривую SDK между конкретными атрибутами."""
         curves = cmds.listConnections(driven_attr, s=True, d=False, type='animCurve') or []
         for c in curves:
             inputs = cmds.listConnections(c + ".input", s=True, d=False, p=True) or []
@@ -44,7 +68,6 @@ class FaceRigBuilder(object):
             cmds.xform(n, matrix=cmds.xform(t, q=True, matrix=True, ws=True), ws=True)
 
     def _hard_reset_driven_bones(self, nodes):
-        """Принудительно обнуляет все 6 каналов трансформации костей."""
         attrs = ['tx','ty','tz','rx','ry','rz']
         for n in nodes:
             for a in attrs:
@@ -52,101 +75,174 @@ class FaceRigBuilder(object):
                 if cmds.objExists(full_at) and cmds.getAttr(full_at, settable=True):
                     cmds.setAttr(full_at, 0)
 
-    # --- УНИВЕРСАЛЬНАЯ ЛОГИКА KEY (11 ШАГОВ) ---
-    def set_smart_key(self, driver_obj, driven_nodes):
+    # --- MAIN SDK LOGIC ---
+    def set_smart_key(self, driver_obj, driven_nodes_from_ui):
+        config = self.load_json(self.config_path)
+        if driver_obj not in config: return
+        if "driven" in config[driver_obj]:
+            self._process_linear_sdk(driver_obj, driven_nodes_from_ui)
+        else:
+            self._process_quadrant_sdk(driver_obj, config[driver_obj])
+
+    # --- ЛИНЕЙНАЯ ЛОГИКА (ВЕКИ / SYNC) --- ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ
+    def _process_linear_sdk(self, driver_obj, driven_nodes):
+        self._log("Linear SDK: Запуск стерильного процесса для {}...".format(driver_obj))
         curr_frame = int(cmds.currentTime(q=True))
         anim_data = self.load_json(self.anim_path)
         
-        if driver_obj not in anim_data:
-            self._log("Error: {} not found in test anim config.".format(driver_obj))
-            return
+        # 1. РАЗДЕЛЕНИЕ СТОРОН
+        # Для Sync/Jaw драйвер один на обе стороны, поэтому в первой части работаем только с правыми/центр костями
+        is_shared = driver_obj in ["Sync", "Jaw", "gui_teeth"]
+        right_and_cent = [n for n in driven_nodes if "left" not in n] if is_shared else driven_nodes
+        left_only = [n for n in driven_nodes if "left" in n] if is_shared else []
 
-        # Находим все каналы, которые есть у этого контрола (tx, ty)
-        channels = [ch for ch in ["tx", "ty"] if ch in anim_data[driver_obj]]
-        self._log("Processing KEY for {} (Axes: {})".format(driver_obj, channels))
+        channels = [ch for ch in ["tx", "ty"] if ch in anim_data.get(driver_obj, {})]
 
-        # 1. ЗАПОМИНАЕМ ПРАВУЮ ПОЗУ (Прокси)
-        r_proxies = self._create_proxies(driven_nodes, "proxy_R_")
+        # --- ШАГ 1: ЗАХВАТ ПРАВОЙ ПОЗЫ ---
+        r_proxies = self._create_proxies(right_and_cent, "tmp_R_")
 
-        # 2. ПРОХОД 0: ГАРАНТИРУЕМ ЧИСТЫЙ НОЛЬ ДЛЯ ВСЕХ КАНАЛОВ
+        # --- ШАГ 2: СТЕРИЛЬНЫЙ 0-ФУНДАМЕНТ (ПРАВО) ---
+        saved_vals = {ch: cmds.getAttr(driver_obj + "." + ch) for ch in channels}
+        
+        # Сброс контроллера и костей в абсолютный 0
+        for ch in channels: cmds.setAttr(driver_obj + "." + ch, 0)
+        self._hard_reset_driven_bones(right_and_cent)
+
+        # Ставим 0-ключи
         for chan in channels:
             drv_at = "{}.{}".format(driver_obj, chan)
-            # Проверяем наличие ключа в 0 через кривую (по tx первой кости)
-            curve = self._get_sdk_curve(driven_nodes[0] + ".tx", drv_at)
-            existing_0 = cmds.keyframe(curve, q=True, fc=True) if curve else []
-            
-            if not any(abs(k - 0.0) < 0.001 for k in existing_0):
-                self._log("Step: Establishing ABSOLUTE ZERO for {}".format(drv_at))
-                # Сохраняем текущее значение контроллера
-                saved_v = cmds.getAttr(drv_at)
-                # Сбрасываем всё в 0
-                cmds.setAttr(drv_at, 0)
-                self._hard_reset_driven_bones(driven_nodes)
-                # Ставим ключ (Volume 0)
-                for n in driven_nodes: self._key_6(drv_at, 0.0, n)
-                # Возвращаем значение контроллера
-                cmds.setAttr(drv_at, saved_v)
+            for n in right_and_cent:
+                # Проверяем наличие ключа в 0, чтобы не дублировать
+                curve = self._get_sdk_curve(n + ".tx", drv_at)
+                has_zero = False
+                if curve and cmds.objExists(curve):
+                    keys = cmds.keyframe(curve, q=True, fc=True) or []
+                    if any(abs(k - 0.0) < 0.001 for k in keys): has_zero = True
+                
+                if not has_zero:
+                    self._key_6(drv_at, 0.0, n)
 
-        # 3. ПРОХОД POSE: СТАВИМ РАБОЧИЙ КЛЮЧ
-        self._snap_to(driven_nodes, r_proxies)
+        # --- ШАГ 3: УСТАНОВКА РАБОЧИХ КЛЮЧЕЙ (ПРАВО) ---
+        # Сначала возвращаем драйвер в позу
+        for ch, val in saved_vals.items(): cmds.setAttr(driver_obj + "." + ch, val)
+        # Затем возвращаем кости из прокси
+        self._snap_to(right_and_cent, r_proxies)
+        
+        f_idx = None
         try: f_idx = anim_data[driver_obj]["frames"].index(curr_frame)
-        except: f_idx = None
+        except: pass
 
         for chan in channels:
             drv_at = "{}.{}".format(driver_obj, chan)
-            # Берем значение драйвера из конфига (или текущее)
-            target_drv_v = anim_data[driver_obj][chan][f_idx] if f_idx is not None else cmds.getAttr(drv_at)
-            # Ставим рабочий ключ (только если значение не 0, чтобы не портить билд-позу)
-            if abs(target_drv_v) > 0.001:
-                for n in driven_nodes: self._key_6(drv_at, target_drv_v, n)
-
-        # 4. ЗЕРКАЛИРОВАНИЕ И ПОВТОР ДЛЯ ЛЕВОЙ СТОРОНЫ
-        # Определяем зеркальный драйвер (для век это L_ контрол, для Sync это тот же Sync)
-        is_side_ctrl = driver_obj.startswith("R_") or "right" in driver_obj
-        m_driver_obj = driver_obj.replace("R_", "L_").replace("right", "left") if is_side_ctrl else driver_obj
-        
-        self._log("Step: Mirroring position...")
-        self.mirror_drivens_logic(driven_nodes)
-        
-        l_bones = [b.replace("right", "left") for b in driven_nodes if "right" in b]
-        l_bones = [b for b in l_bones if cmds.objExists(b)]
-        
-        if l_bones and cmds.objExists(m_driver_obj):
-            l_proxies = self._create_proxies(l_bones, "proxy_L_")
+            target_v = anim_data[driver_obj][chan][f_idx] if f_idx is not None else saved_vals[chan]
             
-            # Проход 0 для левой стороны
-            for chan in channels:
-                l_drv_at = "{}.{}".format(m_driver_obj, chan)
-                l_curve = self._get_sdk_curve(l_bones[0] + ".tx", l_drv_at)
-                if not any(abs(k - 0.0) < 0.001 for k in (cmds.keyframe(l_curve, q=True, fc=True) if l_curve else [])):
-                    self._log("Step: Mirror ABSOLUTE ZERO for {}".format(l_drv_at))
-                    old_lv = cmds.getAttr(l_drv_at); cmds.setAttr(l_drv_at, 0)
-                    self._hard_reset_driven_bones(l_bones)
-                    for ln in l_bones: self._key_6(l_drv_at, 0.0, ln)
-                    cmds.setAttr(l_drv_at, old_lv)
-            
-            # Проход Pose для левой стороны
-            self._snap_to(l_bones, l_proxies)
-            for chan in channels:
-                l_drv_at = "{}.{}".format(m_driver_obj, chan)
-                l_target_drv_v = anim_data[m_driver_obj][chan][f_idx] if f_idx is not None else cmds.getAttr(l_drv_at)
-                if abs(l_target_drv_v) > 0.001:
-                    for ln in l_bones: self._key_6(l_drv_at, l_target_drv_v, ln)
-            
-            cmds.delete(l_proxies)
+            # Записываем ключ только если канал активен (>0), защищая "чистый ноль"
+            if abs(target_v) > 0.001:
+                for n in right_and_cent: self._key_6(drv_at, target_v, n)
 
-        # ОСОБАЯ ЛОГИКА JAW (Инверсия)
-        elif driver_obj in ["Jaw", "gui_teeth"]:
-            # Берем активный канал для инверсии
-            # ...
-            pass
+        # --- ШАГ 4: ЗЕРКАЛИРОВАНИЕ (ЛЕВО) ---
+        m_ctrl = driver_obj.replace("R_", "L_").replace("right", "left")
+        if m_ctrl != driver_obj and cmds.objExists(m_ctrl) or is_shared:
+            target_driver = driver_obj if is_shared else m_ctrl
+            
+            # А. Подготовка левой позы
+            self.mirror_drivens_logic(right_and_cent)
+            if not left_only:
+                left_only = [b.replace("right", "left") for b in right_and_cent if "right" in b and cmds.objExists(b)]
+            
+            if left_only:
+                l_prox = self._create_proxies(left_only, "tmp_L_")
+                
+                # Б. Чистый фундамент для левой стороны
+                # Обнуляем драйвер и кости
+                for ch in channels: cmds.setAttr(target_driver + "." + ch, 0)
+                self._hard_reset_driven_bones(left_only)
+                
+                # Ставим 0-ключи
+                for chan in channels:
+                    l_drv_at = "{}.{}".format(target_driver, chan)
+                    for ln in left_only: self._key_6(l_drv_at, 0.0, ln)
+                
+                # В. Рабочая зеркальная поза (ИСПРАВЛЕННЫЙ ПОРЯДОК)
+                # 1. Сначала ставим драйвер в рабочее значение (это заставит SDK сбросить кости в 0)
+                for chan in channels:
+                    l_drv_at = "{}.{}".format(target_driver, chan)
+                    l_target_v = saved_vals[chan] if is_shared else 0
+                    if not is_shared and f_idx is not None:
+                        l_target_v = anim_data.get(target_driver, {}).get(chan, [0])[f_idx]
+                    
+                    if abs(l_target_v) > 0.001:
+                        cmds.setAttr(l_drv_at, l_target_v)
 
+                # 2. ТЕПЕРЬ возвращаем позу из прокси (она перезапишет нули от SDK)
+                self._snap_to(left_only, l_prox)
+                
+                # 3. Теперь записываем рабочие ключи
+                for chan in channels:
+                    l_drv_at = "{}.{}".format(target_driver, chan)
+                    l_target_v = saved_vals[chan] if is_shared else 0
+                    if not is_shared and f_idx is not None:
+                        l_target_v = anim_data.get(target_driver, {}).get(chan, [0])[f_idx]
+
+                    if abs(l_target_v) > 0.001:
+                        for ln in left_only: self._key_6(l_drv_at, l_target_v, ln)
+                
+                cmds.delete(l_prox)
+
+        # Очистка
         cmds.delete(r_proxies)
-        self._log("Smart KEY process finished successfully.")
+        self._log("Linear SDK Process Complete (Fixed Mirroring Sequence).")
+
+    def _process_quadrant_sdk(self, driver_obj, ctrl_config):
+        self._log("Quadrant SDK Process: {}...".format(driver_obj))
+        tx_val = cmds.getAttr(driver_obj + ".tx")
+        ty_val = cmds.getAttr(driver_obj + ".ty")
+        active_q = None
+        if abs(ty_val) > 0.001: active_q = "pos_y" if ty_val > 0 else "neg_y"
+        elif abs(tx_val) > 0.001: active_q = "pos_x" if tx_val > 0 else "neg_x"
+        if not active_q: return
+
+        src_q = active_q
+        if not any("right" in b for b in ctrl_config.get(active_q, [])):
+            for q, partner in self.mirror_map.get(driver_obj, {}).items():
+                if partner == active_q: src_q = q; break
+
+        r_bones = self.get_driven_bones(driver_obj, src_q)
+        r_prox = self._create_proxies(r_bones, "tmp_quad_R_")
+
+        # Total Zero
+        all_bones = self.get_driven_bones(driver_obj)
+        for chan in ["tx", "ty"]:
+            drv_at = "{}.{}".format(driver_obj, chan)
+            old_v = cmds.getAttr(drv_at); cmds.setAttr(drv_at, 0)
+            self._hard_reset_driven_bones(all_bones)
+            for n in all_bones: self._key_6(drv_at, 0.0, n)
+            cmds.setAttr(drv_at, old_v)
+
+        # Work Keys
+        src_chan = "ty" if "y" in src_q else "tx"
+        src_val = 1.5 if "pos" in src_q else -1.5 
+        drv_at = "{}.{}".format(driver_obj, src_chan)
+        self._snap_to(r_bones, r_prox)
+        for n in r_bones: self._key_6(drv_at, src_val, n)
+
+        # Cross-Mirror
+        mirror_q = self.mirror_map.get(driver_obj, {}).get(src_q)
+        if mirror_q:
+            self.mirror_drivens_logic(r_bones)
+            l_bones = [b.replace("right", "left") if "right" in b else b for b in r_bones]
+            l_bones = [b for b in l_bones if cmds.objExists(b)]
+            l_prox = self._create_proxies(l_bones, "tmp_quad_L_")
+            m_chan = "ty" if "y" in mirror_q else "tx"
+            m_drv_at = "{}.{}".format(driver_obj, m_chan)
+            m_val = -src_val if driver_obj != "Emote" else src_val
+            self._snap_to(l_bones, l_prox)
+            for ln in l_bones: self._key_6(m_drv_at, m_val, ln)
+            cmds.delete(l_prox)
+        cmds.delete(r_prox)
 
     def _key_6(self, drv_at, drv_val, node):
-        attrs = ['tx','ty','tz','rx','ry','rz']
-        for a in attrs:
+        for a in ['tx','ty','tz','rx','ry','rz']:
             cmds.setDrivenKeyframe("{}.{}".format(node, a), cd=drv_at, dv=drv_val, v=cmds.getAttr("{}.{}".format(node, a)))
 
     def mirror_drivens_logic(self, nodes=None):
@@ -160,19 +256,14 @@ class FaceRigBuilder(object):
                 rot = cmds.xform(r, q=True, ro=True, os=True)
                 cmds.xform(l, ro=[rot[0], -rot[1], -rot[2]], os=True)
 
+    # --- UI HELPERS ---
     def run_context_test_animation(self):
-        """Анимация для всех выделенных контролов (группирует веки)."""
         self.clean_test_animation()
         sel = cmds.ls(sl=True); data = self.load_json(self.anim_path); to_anim = []
-        
-        # Если выбрано любое веко - анимируем всю группу
-        if any(x in sel for x in ["R_Lwr_EyeLid", "L_Lwr_EyeLid", "L_Upp_EyeLid", "R_Upp_EyeLid"]):
+        if any("Lid" in x or "Eye" in x for x in sel):
             to_anim = ["R_Lwr_EyeLid", "L_Lwr_EyeLid", "L_Upp_EyeLid", "R_Upp_EyeLid"]
-        elif any(x in sel for x in ["Lwr_Lip", "Upr_Lip"]):
-            to_anim = ["Lwr_Lip", "Upr_Lip"]
-        else:
-            to_anim = sel if sel else []
-
+        elif any("Lip" in x for x in sel): to_anim = ["Lwr_Lip", "Upr_Lip"]
+        else: to_anim = sel if sel else []
         for ctrl in to_anim:
             if ctrl in data:
                 d = data[ctrl]
@@ -187,19 +278,7 @@ class FaceRigBuilder(object):
             cmds.cutKey(c, s=True)
             for ctrl in c:
                 for a in ['tx','ty','tz','rx','ry','rz']:
-                    if cmds.getAttr(ctrl+"."+a, settable=True):
-                        try: cmds.setAttr(ctrl+"."+a, 0)
-                        except: pass
-
-    def get_driven_bones(self, ctrl_name):
-        config = self.load_json(self.config_path)
-        if ctrl_name not in config: return []
-        patterns = config[ctrl_name].get("driven", [])
-        actual = []
-        for p in patterns:
-            found = cmds.ls(p, type="joint") if "*" in p else ([p] if cmds.objExists(p) else [])
-            actual.extend(found)
-        return sorted(list(set(actual)))
+                    if cmds.getAttr(ctrl+"."+a, settable=True): cmds.setAttr(ctrl+"."+a, 0)
 
     def import_gui_library(self):
         lib = os.path.join(self.config_dir, "face_controls_library.ma")
@@ -222,3 +301,13 @@ class FaceRigBuilder(object):
         cmds.select(cl=True); j = cmds.joint(name=bone_name); cmds.parent(j, loc)
         for a in [".t",".r",".jo"]: cmds.setAttr(j+a, 0,0,0)
         return loc
+
+    def mirror_unit(self, source_loc):
+        if not cmds.objExists(source_loc) or any(x in source_loc for x in ["cent_", "teeth", "jaw"]): return
+        target = source_loc.replace("right", "left")
+        if cmds.objExists(target): cmds.delete(target)
+        new_loc = cmds.duplicate(source_loc, name=target, rc=True)[0]
+        cmds.setAttr(new_loc+".tx", -cmds.getAttr(new_loc+".tx")); cmds.setAttr(new_loc+".rx", 180)
+        cmds.setAttr(new_loc+".overrideColor", 6)
+        child = cmds.listRelatives(new_loc, children=True, type="joint")
+        if child: cmds.rename(child[0], target.replace("locAlign_fcrg_", "mchFcrg_"))
