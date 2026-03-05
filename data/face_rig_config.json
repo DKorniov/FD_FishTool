@@ -27,6 +27,19 @@
       "mchFcrg_left_dwn_eyeShade3"
     ]
   },
+  "R_Brow_ctrl": {
+    "driven": ["mchFcrg_right_Brow*"]
+  },
+  "L_Brow_ctrl": {
+    "driven": ["mchFcrg_left_Brow*"]
+  },  
+  "R_Eye_ctrl": {
+    "driven": ["mchFcrg_right_Eye"]
+  },
+  "L_Eye_ctrl": {
+    "driven": ["mchFcrg_left_Eye"]
+  },   
+  
   "Sync": {
     "driven": [
       "mchFcrg_jaw",

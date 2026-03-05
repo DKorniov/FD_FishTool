@@ -10,7 +10,8 @@ class FaceRigBuilder(object):
         self.config_path = os.path.join(self.config_dir, "face_rig_config.json")
         self.anim_path = os.path.join(self.config_dir, "face_test_anim.json")
         self.test_ctrls = ["R_Lwr_EyeLid", "L_Lwr_EyeLid", "L_Upp_EyeLid", "R_Upp_EyeLid", 
-                           "Emote", "Sync", "Jaw", "gui_teeth", "Lwr_Lip", "Upr_Lip"]
+                   "Emote", "Sync", "Jaw", "gui_teeth", "Lwr_Lip", "Upr_Lip",
+                   "R_Brow_ctrl", "L_Brow_ctrl", "R_Eye_ctrl", "L_Eye_ctrl"]
         self.ai_log = None
 
         self.mirror_map = {
@@ -124,41 +125,44 @@ class FaceRigBuilder(object):
 
     # --- ИСПРАВЛЕННЫЙ МЕТОД ДЛЯ TEETH ---
     def _process_teeth_sdk(self, driver_obj, driven_nodes):
-        self._log("Processing TEETH (Y-Linear / X-Inversion)...")
+        self._log("Processing TEETH (Linear Y [-1,1] / Inversion X)...")
         tx_val = cmds.getAttr(driver_obj + ".tx")
         ty_val = cmds.getAttr(driver_obj + ".ty")
 
-        if abs(ty_val) > 0.001 and abs(tx_val) < 0.001:
+        # 1. Логика Y (Подъем/Опускание) - теперь поддерживает весь диапазон [-1, 1]
+        # Используем стандартный линейный процесс, так как он умеет работать с JSON и негативными значениями
+        if abs(ty_val) > 0.001:
             self._process_linear_sdk(driver_obj, driven_nodes)
-            return
-            
+            # Если по X движения нет, выходим, чтобы не дублировать ключи
+            if abs(tx_val) < 0.001: return
+
+        # 2. Логика X (Наклон с инверсией RotateX)
         if abs(tx_val) > 0.001:
             drv_at = driver_obj + ".tx"
             proxies = self._create_proxies(driven_nodes, "tmp_teeth_")
             
-            # Фундамент 0
+            # Фундамент 0 (Стерильный сброс)
             cmds.setAttr(drv_at, 0)
             self._hard_reset_driven_bones(driven_nodes)
             for n in driven_nodes: self._key_6(drv_at, 0.0, n)
             
-            # Рабочий ключ TX = 1.0
+            # Рабочий ключ TX = 1.0 (Поза вперед)
             cmds.setAttr(drv_at, 1.0)
             self._snap_to(driven_nodes, proxies)
             for n in driven_nodes: self._key_6(drv_at, 1.0, n)
             
-            # Инверсия RotateX для TX = -1.0
+            # Авто-инверсия для TX = -1.0 (Наклон назад)
             cmds.setAttr(drv_at, -1.0)
-            # ВАЖНО: Снова примагничиваем к прокси
-            self._snap_to(driven_nodes, proxies) 
-            
+            self._snap_to(driven_nodes, proxies) # Сначала возвращаем позу
             for n in driven_nodes:
                 rx_val = cmds.getAttr(n + ".rx")
-                cmds.setAttr(n + ".rx", rx_val * -1)
+                cmds.setAttr(n + ".rx", rx_val * -1) # Инвертируем наклон
                 self._key_6(drv_at, -1.0, n)
                 
             cmds.delete(proxies)
-            cmds.setAttr(drv_at, 1.0)
-            self._log("TEETH X-Inversion Complete.")
+            # Возвращаем контроллер в текущее положение пользователя
+            cmds.setAttr(drv_at, tx_val)
+            self._log("TEETH X-Inversion Processed.")
 
     # --- ЛИНЕЙНАЯ ЛОГИКА (ВЕКИ / SYNC) --- ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ
     def _process_linear_sdk(self, driver_obj, driven_nodes):
@@ -210,13 +214,25 @@ class FaceRigBuilder(object):
                 for n in right_and_cent: self._key_6(drv_at, target_v, n)
 
         # --- ШАГ 4: ЗЕРКАЛИРОВАНИЕ (ЛЕВО) ---
-        m_ctrl = driver_obj.replace("R_", "L_").replace("right", "left")
+        m_ctrl = driver_obj
+        if "R_" in driver_obj: m_ctrl = driver_obj.replace("R_", "L_")
+        elif "L_" in driver_obj: m_ctrl = driver_obj.replace("L_", "R_")
+        elif "right" in driver_obj: m_ctrl = driver_obj.replace("right", "left")
+        elif "left" in driver_obj: m_ctrl = driver_obj.replace("left", "right")
+
         if m_ctrl != driver_obj and cmds.objExists(m_ctrl) or is_shared:
             target_driver = driver_obj if is_shared else m_ctrl
             
             self.mirror_drivens_logic(right_and_cent)
             if not left_only:
-                left_only = [b.replace("right", "left") for b in right_and_cent if "right" in b and cmds.objExists(b)]
+                for b in right_and_cent:
+                    new_b = b
+                    if "right" in b: new_b = b.replace("right", "left")
+                    elif "left" in b: new_b = b.replace("left", "right")
+                    
+                    # Если имя изменилось (нашли пару) и кость существует - добавляем
+                    if new_b != b and cmds.objExists(new_b):
+                        left_only.append(new_b)
             
             if left_only:
                 l_prox = self._create_proxies(left_only, "tmp_L_")
@@ -322,10 +338,22 @@ class FaceRigBuilder(object):
     def run_context_test_animation(self):
         self.clean_test_animation()
         sel = cmds.ls(sl=True); data = self.load_json(self.anim_path); to_anim = []
+        
+        # Группировка век
         if any("Lid" in x or "Eye" in x for x in sel):
             to_anim = ["R_Lwr_EyeLid", "L_Lwr_EyeLid", "L_Upp_EyeLid", "R_Upp_EyeLid"]
-        elif any("Lip" in x for x in sel): to_anim = ["Lwr_Lip", "Upr_Lip"]
-        else: to_anim = sel if sel else []
+        # НОВОЕ: Группировка бровей
+        elif any("Brow" in x for x in sel):
+            to_anim = ["R_Brow_ctrl", "L_Brow_ctrl"]
+        # Группировка глаз (контроллеры взгляда)
+        elif any("Eye_ctrl" in x for x in sel):
+            to_anim = ["R_Eye_ctrl", "L_Eye_ctrl"]
+        # Группировка губ
+        elif any("Lip" in x for x in sel): 
+            to_anim = ["Lwr_Lip", "Upr_Lip"]
+        else: 
+            to_anim = sel if sel else []
+            
         for ctrl in to_anim:
             if ctrl in data:
                 d = data[ctrl]
@@ -335,12 +363,14 @@ class FaceRigBuilder(object):
         cmds.currentTime(1)
 
     def clean_test_animation(self):
+        """Очистка ключей и сброс в ноль."""
         c = [x for x in self.test_ctrls if cmds.objExists(x)]
         if c: 
             cmds.cutKey(c, s=True)
             for ctrl in c:
                 for a in ['tx','ty','tz','rx','ry','rz']:
-                    if cmds.getAttr(ctrl+"."+a, settable=True): cmds.setAttr(ctrl+"."+a, 0)
+                    if cmds.objExists(ctrl+"."+a) and cmds.getAttr(ctrl+"."+a, settable=True):
+                        cmds.setAttr(ctrl+"."+a, 0)
 
     def import_gui_library(self):
         lib = os.path.join(self.config_dir, "face_controls_library.ma")

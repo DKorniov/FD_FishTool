@@ -23,6 +23,7 @@ class FaceSelectorWindow(QtWidgets.QDialog):
         right_panel.addWidget(QtWidgets.QLabel("<b>Driven Bones (Auto-load):</b>"))
         self.driven_list = QtWidgets.QListWidget()
         self.driven_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.driven_list.itemSelectionChanged.connect(self._on_driven_list_selection_changed)
         right_panel.addWidget(self.driven_list)
         
         self.btn_key = QtWidgets.QPushButton("KEY")
@@ -42,10 +43,15 @@ class FaceSelectorWindow(QtWidgets.QDialog):
         main_lay.addLayout(right_panel, stretch=1)
 
     def _setup_grid(self):
-        ctrls = [(0,0,"L_Upp_Lid","L_Upp_EyeLid"),(0,2,"R_Upp_Lid","R_Upp_EyeLid"),
-                 (1,0,"L_Lwr_Lid","L_Lwr_EyeLid"),(1,1,"Sync","Sync"),(1,2,"R_Lwr_Lid","R_Lwr_EyeLid"),
-                 (2,1,"Upr_Lip","Upr_Lip"),(3,0,"Emote","Emote"),(3,1,"Lwr_Lip","Lwr_Lip"),
-                 (3,2,"Jaw","Jaw"),(4,1,"Teeth","gui_teeth")]
+        # Добавляем L_Brow и R_Brow в верхний ряд (0), смещая веки ниже
+        ctrls = [
+            (0,0,"R_Brow","R_Brow_ctrl"),(0,1,"L_Brow","L_Brow_ctrl"),
+            (1,0,"R_Upp_Lid","R_Upp_EyeLid"),(1,1,"L_Upp_Lid","L_Upp_EyeLid"),(1,3,"Sync","Sync"),(1,4,"Upr_Lip","Upr_Lip"),
+            (2,0,"R_Eye","R_Eye_ctrl"),(2,1,"L_Eye","L_Eye_ctrl"), (2,3,"Emote","Emote"), (2,4,"Lwr_Lip","Lwr_Lip"),
+            (3,0,"R_Lwr_Lid","R_Lwr_EyeLid"),(3,1,"L_Lwr_Lid","L_Lwr_EyeLid"), (3,3,"Jaw","Jaw"),(3,4,"Teeth","gui_teeth")
+            
+            
+        ]
         for r, c, l, n in ctrls:
             b = QtWidgets.QPushButton(l); b.setFixedSize(110, 50)
             b.clicked.connect(lambda ch=False, name=n: self._on_click(name))
@@ -57,6 +63,21 @@ class FaceSelectorWindow(QtWidgets.QDialog):
         self.driven_list.clear()
         bones = self.builder.get_driven_bones(name)
         if bones: self.driven_list.addItems(bones)
+    
+    def _on_driven_list_selection_changed(self):
+    
+        # Получаем список всех выделенных объектов в QListWidget
+        selected_items = self.driven_list.selectedItems()
+        bone_names = [item.text() for item in selected_items]
+    
+        if bone_names:
+            # Проверяем существование, чтобы не поймать ошибку, если кость удалена
+            existing_bones = [b for b in bone_names if cmds.objExists(b)]
+            if existing_bones:
+                cmds.select(existing_bones)
+        else:
+            # Если в списке ничего не выбрано, снимаем выделение в Maya
+            cmds.select(clear=True)
 
     def _do_key(self):
         sel = cmds.ls(sl=True)
