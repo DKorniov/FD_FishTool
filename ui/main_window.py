@@ -15,6 +15,7 @@ from FD_FishTool.core.physics_manager import PhysicsManager
 from FD_FishTool.ui.rig_face_ui import FaceRigTab
 
 
+
 # Импорты UI (Абсолютные пути для исключения ModuleNotFoundError)
 from FD_FishTool.ui.spring_selector import SpringSelectorWindow
 from FD_FishTool.ui.rig_body_ui import RigBodyWidget
@@ -82,11 +83,31 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         return tab
 
     def ui_animation_tab(self):
-        """Вкладка анимации: Полный возврат к v2.0."""
+        """Вкладка анимации: Обновленная версия с интеграцией AnimAssist."""
         tab = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(tab)
+        # Сохраняем layout в self, чтобы избежать AttributeError в будущем
+        self.ui_animation_tab_layout = QtWidgets.QVBoxLayout(tab)
+
+        # --- НОВЫЙ БЛОК: AnimAssist Integration ---
+        anim_assist_group = QtWidgets.QGroupBox("AnimAssist Management")
+        aa_lay = QtWidgets.QVBoxLayout(anim_assist_group)
         
-        # Пресеты Studio Library
+        self.btn_load_anim_list = QtWidgets.QPushButton("📂 ЗАГРУЗИТЬ СПИСОК АНИМАЦИИ")
+        self.btn_load_anim_list.setFixedHeight(35)
+        self.btn_load_anim_list.setToolTip("Проверить статус AnimAssist.mel и загрузить эталонный список")
+        self.btn_load_anim_list.setStyleSheet("background-color: #3d4c5a; color: #e1e1e1; font-weight: bold;")
+        
+        # Безопасный коннект к логике
+        try:
+            from FD_FishTool.core import anim_handler
+            self.btn_load_anim_list.clicked.connect(anim_handler.AnimationHandler.load_etalon_animations)
+        except Exception as e:
+            print(f"FD_FishTool Warning: Could not connect AnimAssist button: {e}")
+            
+        aa_lay.addWidget(self.btn_load_anim_list)
+        self.ui_animation_tab_layout.addWidget(anim_assist_group)
+
+        # --- СУЩЕСТВУЮЩИЙ КОД: Presets Studio Library ---
         lib_group = QtWidgets.QGroupBox("Studio Library Presets")
         l_lay = QtWidgets.QVBoxLayout(lib_group)
         btn_b = QtWidgets.QPushButton("🕺 Select Set & Apply BODY Anim")
@@ -95,9 +116,9 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         btn_f.clicked.connect(lambda: self.anim_mgr.apply_studio_anim("face_standart_anim.anim"))
         l_lay.addWidget(btn_b)
         l_lay.addWidget(btn_f)
-        layout.addWidget(lib_group)
+        self.ui_animation_tab_layout.addWidget(lib_group)
 
-        # Physics Pipeline (SpringMagic)
+        # --- СУЩЕСТВУЮЩИЙ КОД: Physics Pipeline (SpringMagic) ---
         sm_group = QtWidgets.QGroupBox("Physics Pipeline")
         s_lay = QtWidgets.QVBoxLayout(sm_group)
         btn_sm = QtWidgets.QPushButton("🧬 OPEN SPRINGMAGIC SELECTOR")
@@ -105,17 +126,17 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         btn_sm.setStyleSheet("background-color: #3d5a6b; color: white; font-weight: bold;")
         btn_sm.clicked.connect(self.open_spring_selector)
         s_lay.addWidget(btn_sm)
-        layout.addWidget(sm_group)
+        self.ui_animation_tab_layout.addWidget(sm_group)
 
-        # Дерево анимаций
+        # --- СУЩЕСТВУЮЩИЙ КОД: Дерево анимаций ---
         self.anim_tree = QtWidgets.QTreeWidget()
         self.anim_tree.setHeaderLabels(["Статус", "Клип", "Эталон", "В Сцене"])
         self.anim_tree.itemClicked.connect(self.on_clip_click)
-        layout.addWidget(self.anim_tree)
+        self.ui_animation_tab_layout.addWidget(self.anim_tree)
 
         btn_sync = QtWidgets.QPushButton("🔄 СИНХРОНИЗИРОВАТЬ СПИСОК")
         btn_sync.clicked.connect(self.refresh_anim_list)
-        layout.addWidget(btn_sync)
+        self.ui_animation_tab_layout.addWidget(btn_sync)
         
         return tab
 
