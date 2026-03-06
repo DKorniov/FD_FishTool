@@ -142,6 +142,7 @@ class FaceRigTab(QtWidgets.QWidget):
     def open_selector(self):
         if self.builder.import_gui_library():
             if not self.selector: self.selector = FaceSelectorWindow(self.builder, self, self.ai_log)
+            self.builder.build_and_connect_skin_bones()
             self.selector.show()
 
     def run_eyes(self):

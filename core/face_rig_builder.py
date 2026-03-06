@@ -89,39 +89,77 @@ class FaceRigBuilder(object):
         else:
             self._process_quadrant_sdk(driver_obj, config[driver_obj])
 
-    # --- ИСПРАВЛЕННЫЙ МЕТОД ДЛЯ JAW ---
+    # --- ИСПРАВЛЕННЫЙ МЕТОД ДЛЯ JAW (Cross-Mirroring) ---
+    # --- ГИБРИДНЫЙ МЕТОД ДЛЯ JAW (Self + Cross Mirroring) ---
     def _process_jaw_sdk(self, driver_obj, driven_nodes):
-        self._log("Processing JAW (Self-Mirroring X)...")
+        self._log("Processing JAW (Hybrid Mirroring: Self for Central, Cross for Paired)...")
         drv_at = driver_obj + ".tx"
         
-        # 1. Захват позы (поза, которую настроил юзер, обычно при TX=1)
-        proxies = self._create_proxies(driven_nodes, "tmp_jaw_")
+        # 1. Захват данных из позы при TX = 1.0 (в словарь Python)
+        captured_data = {}
+        for n in driven_nodes:
+            captured_data[n] = {
+                'tx': cmds.getAttr(n + ".tx"), 'ty': cmds.getAttr(n + ".ty"), 'tz': cmds.getAttr(n + ".tz"),
+                'rx': cmds.getAttr(n + ".rx"), 'ry': cmds.getAttr(n + ".ry"), 'rz': cmds.getAttr(n + ".rz")
+            }
         
-        # 2. Глобальный сброс (0)
+        # 2. Нейтраль (TX = 0)
         cmds.setAttr(drv_at, 0)
         self._hard_reset_driven_bones(driven_nodes)
-        for n in driven_nodes: self._key_6(drv_at, 0.0, n)
+        for n in driven_nodes: 
+            self._key_6(drv_at, 0.0, n)
         
-        # 3. Запись позы для TX = 1.0
+        # 3. Установка ключей для TX = 1.0
         cmds.setAttr(drv_at, 1.0)
-        self._snap_to(driven_nodes, proxies) # Возвращаем кости в настроенную позу
-        for n in driven_nodes: self._key_6(drv_at, 1.0, n)
-        
-        # 4. МАТЕМАТИЧЕСКОЕ ЗЕРКАЛО ДЛЯ TX = -1.0
+        for n in driven_nodes:
+            d = captured_data[n]
+            for a in ['tx','ty','tz','rx','ry','rz']:
+                cmds.setAttr(n + "." + a, d[a])
+            self._key_6(drv_at, 1.0, n)
+            
+        # 4. ЗЕРКАЛО ДЛЯ TX = -1.0
         cmds.setAttr(drv_at, -1.0)
-        # ВАЖНО: Снова примагничиваем кости к прокси, чтобы считать значения ИЗ ПОЗЫ, а не из нуля
-        self._snap_to(driven_nodes, proxies) 
+        # Очищаем сцену перед распределением зеркальной позы
+        self._hard_reset_driven_bones(driven_nodes)
         
         for n in driven_nodes:
-            # Инвертируем смещение по X и повороты по Y/Z для центральной симметрии
-            for attr, multi in zip(['tx', 'ty', 'tz', 'rx', 'ry', 'rz'], [-1, 1, 1, 1, -1, -1]):
-                val = cmds.getAttr(n + "." + attr)
-                cmds.setAttr(n + "." + attr, val * multi)
+            # Проверка: центральная кость или парная?
+            is_cent = any(x in n.lower() for x in ["cent", "jaw"])
+            d = captured_data[n]
+            
+            if is_cent:
+                # ЛОГИКА ДЛЯ ЦЕНТРАЛЬНЫХ (Зеркалят сами себя)
+                # По вашему примеру: [1,1,1, 2,2,2] -> [-1, 1,1, 2,-2,-2]
+                cmds.setAttr(n + ".tx", -d['tx'])
+                cmds.setAttr(n + ".ty", d['ty'])
+                cmds.setAttr(n + ".tz", d['tz'])
+                cmds.setAttr(n + ".rx", d['rx'])
+                cmds.setAttr(n + ".ry", -d['ry'])
+                cmds.setAttr(n + ".rz", -d['rz'])
+            else:
+                # ЛОГИКА ДЛЯ ПАРНЫХ (Перенос на партнера)
+                m_node = n
+                if "right" in n: m_node = n.replace("right", "left")
+                elif "left" in n: m_node = n.replace("left", "right")
+                elif "R_" in n: m_node = n.replace("R_", "L_")
+                elif "L_" in n: m_node = n.replace("L_", "R_")
+                
+                if cmds.objExists(m_node):
+                    # По вашему примеру: T инвертируется по всем осям, R сохраняет знаки
+                    cmds.setAttr(m_node + ".tx", -d['tx'])
+                    cmds.setAttr(m_node + ".ty", -d['ty'])
+                    cmds.setAttr(m_node + ".tz", -d['tz'])
+                    cmds.setAttr(m_node + ".rx", d['rx'])
+                    cmds.setAttr(m_node + ".ry", d['ry'])
+                    cmds.setAttr(m_node + ".rz", d['rz'])
+
+        # Фиксируем ключи для положения -1.0 для всех костей
+        for n in driven_nodes:
             self._key_6(drv_at, -1.0, n)
             
-        cmds.delete(proxies)
-        cmds.setAttr(drv_at, 1.0) # Возвращаем в исходную рабочую позу
-        self._log("JAW SDK Complete.")
+        # Возвращаем в 1.0 для проверки
+        cmds.setAttr(drv_at, 1.0)
+        self._log("JAW Hybrid Mirroring Complete.")
 
     # --- ИСПРАВЛЕННЫЙ МЕТОД ДЛЯ TEETH ---
     def _process_teeth_sdk(self, driver_obj, driven_nodes):
@@ -165,6 +203,7 @@ class FaceRigBuilder(object):
             self._log("TEETH X-Inversion Processed.")
 
     # --- ЛИНЕЙНАЯ ЛОГИКА (ВЕКИ / SYNC) --- ПОЛНОСТЬЮ ИСПРАВЛЕННАЯ ВЕРСИЯ
+    # --- СТАБИЛЬНАЯ ВЕРСИЯ _process_linear_sdk (Branch 09) ---
     def _process_linear_sdk(self, driver_obj, driven_nodes):
         self._log("Linear SDK: Starting sterile process for {}...".format(driver_obj))
         curr_frame = int(cmds.currentTime(q=True))
@@ -176,13 +215,13 @@ class FaceRigBuilder(object):
         left_only = [n for n in driven_nodes if "left" in n] if is_shared else []
 
         channels = [ch for ch in ["tx", "ty"] if ch in anim_data.get(driver_obj, {})]
+        # Сохраняем текущие позы контроллера
+        saved_vals = {ch: cmds.getAttr(driver_obj + "." + ch) for ch in channels}
 
         # --- ШАГ 1: ЗАХВАТ ПРАВОЙ ПОЗЫ ---
         r_proxies = self._create_proxies(right_and_cent, "tmp_R_")
 
         # --- ШАГ 2: СТЕРИЛЬНЫЙ 0-ФУНДАМЕНТ (ПРАВО) ---
-        saved_vals = {ch: cmds.getAttr(driver_obj + "." + ch) for ch in channels}
-        
         for ch in channels: cmds.setAttr(driver_obj + "." + ch, 0)
         self._hard_reset_driven_bones(right_and_cent)
 
@@ -223,14 +262,15 @@ class FaceRigBuilder(object):
         if m_ctrl != driver_obj and cmds.objExists(m_ctrl) or is_shared:
             target_driver = driver_obj if is_shared else m_ctrl
             
+            # А. Подготовка левой позы
             self.mirror_drivens_logic(right_and_cent)
+            
+            # Поиск левых костей для не-shared контролов
             if not left_only:
                 for b in right_and_cent:
                     new_b = b
                     if "right" in b: new_b = b.replace("right", "left")
                     elif "left" in b: new_b = b.replace("left", "right")
-                    
-                    # Если имя изменилось (нашли пару) и кость существует - добавляем
                     if new_b != b and cmds.objExists(new_b):
                         left_only.append(new_b)
             
@@ -249,18 +289,16 @@ class FaceRigBuilder(object):
                     for ln in left_only: self._key_6(l_drv_at, 0.0, ln)
                 
                 # В. Рабочая зеркальная поза
-                # 1. Сначала ставим драйвер в рабочее значение (берем напрямую из сохраненных значений правого драйвера)
                 for chan in channels:
                     l_drv_at = "{}.{}".format(target_driver, chan)
-                    l_target_v = saved_vals[chan] # Для симметрии берем текущее значение
+                    # Для Sync и бровей берем текущее значение контроллера
+                    l_target_v = saved_vals[chan] 
                     
                     if abs(l_target_v) > 0.001:
                         cmds.setAttr(l_drv_at, l_target_v)
 
-                # 2. ТЕПЕРЬ возвращаем позу из прокси
                 self._snap_to(left_only, l_prox)
                 
-                # 3. Теперь записываем рабочие ключи
                 for chan in channels:
                     l_drv_at = "{}.{}".format(target_driver, chan)
                     l_target_v = saved_vals[chan]
@@ -271,7 +309,7 @@ class FaceRigBuilder(object):
                 cmds.delete(l_prox)
 
         cmds.delete(r_proxies)
-        self._log("Linear SDK Process Complete (Fixed Eyelid Mirroring).")
+        self._log("Linear Process Complete: {}".format(driver_obj))
 
     # --- КВАДРАНТНАЯ ЛОГИКА (EMOTE / LIPS) --- (БЕЗ ИЗМЕНЕНИЙ)
     def _process_quadrant_sdk(self, driver_obj, ctrl_config):
@@ -325,15 +363,32 @@ class FaceRigBuilder(object):
             cmds.setDrivenKeyframe("{}.{}".format(node, a), cd=drv_at, dv=drv_val, v=cmds.getAttr("{}.{}".format(node, a)))
 
     def mirror_drivens_logic(self, nodes=None):
+        """
+        Зеркалирование позы костей. 
+        Теперь Rotate копируется с сохранением знаков (Mirror Behavior).
+        """
+        # Если ноды не переданы, ищем по умолчанию все правые
         targets = nodes if nodes else cmds.ls('mchFcrg*right*', type='joint')
-        for r in targets:
-            if 'right' not in r: continue
-            l = r.replace('right', 'left')
-            if cmds.objExists(l):
-                pos = cmds.xform(r, q=True, t=True, ws=True)
-                cmds.xform(l, t=[-pos[0], pos[1], pos[2]], ws=True)
-                rot = cmds.xform(r, q=True, ro=True, os=True)
-                cmds.xform(l, ro=[rot[0], -rot[1], -rot[2]], os=True)
+        
+        for src in targets:
+            # Умный поиск зеркального имени (R_ -> L_, right -> left, _R -> _L)
+            dest = None
+            if "right" in src: dest = src.replace("right", "left")
+            elif "left" in src: dest = src.replace("left", "right")
+            elif "R_" in src: dest = src.replace("R_", "L_")
+            elif "L_" in src: dest = src.replace("L_", "R_")
+            
+            if dest and dest != src and cmds.objExists(dest):
+                # 1. Зеркалирование транслейта (Мировая симметрия по X)
+                pos = cmds.xform(src, q=True, t=True, ws=True)
+                cmds.xform(dest, t=[-pos[0], pos[1], pos[2]], ws=True)
+                
+                # 2. Зеркалирование ротейта (Копирование знаков)
+                # По просьбе: с +rx;+ry;+rz на +rx;+ry;+rz
+                rot = cmds.xform(src, q=True, ro=True, os=True)
+                cmds.xform(dest, ro=[rot[0], rot[1], rot[2]], os=True)
+                
+                self._log("Pose Mirrored: {} -> {} (Same Signs)".format(src, dest))
 
     def run_context_test_animation(self):
         self.clean_test_animation()
@@ -403,3 +458,84 @@ class FaceRigBuilder(object):
         cmds.setAttr(new_loc+".overrideColor", 6)
         child = cmds.listRelatives(new_loc, children=True, type="joint")
         if child: cmds.rename(child[0], target.replace("locAlign_fcrg_", "mchFcrg_"))
+    
+    def build_and_connect_skin_bones(self):
+        """
+        Stage 4: Динамическая генерация скин-костей и их привязка к механике.
+        """
+        self._log("Stage 4: Запуск процесса Skin-Mapping...")
+        
+        # 1. Загрузка конфига
+        map_path = os.path.join(self.config_dir, "bone_skin_map.json")
+        all_map_data = self.load_json(map_path)
+        # Берем исключения из stage_4, не меняя структуру основного файла
+        face_exceptions = all_map_data.get("stage_4", {}).get("face_exceptions", {})
+
+        # 2. Подготовка иерархии
+        skin_grp = "Fcrg_bn_grp"
+        if not cmds.objExists(skin_grp): cmds.group(em=True, name=skin_grp)
+        
+        cnstr_grp = "cnstrn_grp"
+        if not cmds.objExists(cnstr_grp): cmds.group(em=True, name=cnstr_grp)
+
+        # 3. Сканирование механических костей (MCH)
+        mch_bones = cmds.ls("mchFcrg_*", type="joint")
+        if not mch_bones:
+            self._log("Механические кости mchFcrg_ не найдены. Пропуск.")
+            return
+
+        for mch in mch_bones:
+            # А. Получаем имя скин-кости через транслятор
+            skn_name = self._translate_mch_to_skin(mch, face_exceptions)
+            
+            # Б. Создание кости, если её нет
+            if not cmds.objExists(skn_name):
+                cmds.select(cl=True)
+                skn = cmds.joint(name=skn_name)
+                # Копируем положение
+                cmds.delete(cmds.parentConstraint(mch, skn))
+                cmds.makeIdentity(skn, apply=True, t=0, r=1, s=0)
+                cmds.parent(skn, skin_grp)
+                self._log("Создана кость: {}".format(skn_name))
+            else:
+                skn = skn_name
+
+            # В. Подключение (Parent Constraint)
+            if not self._is_constrained(mch, skn):
+                pc = cmds.parentConstraint(mch, skn, mo=False, name=skn + "_pc_mch")[0]
+                cmds.parent(pc, cnstr_grp)
+                self._log("Связь: {} -> {}".format(mch, skn))
+
+    def _translate_mch_to_skin(self, mch, exceptions):
+        """Реализация правил именования допущений."""
+        # 1. Исключения (из JSON)
+        if mch in exceptions:
+            return exceptions[mch]
+
+        # Убираем основной префикс
+        base = mch.replace("mchFcrg_", "")
+
+        # 2. Правило Lips (cent -> center, убираем цифры в конце)
+        if "cent_" in base and "lip" in base:
+            res = base.replace("cent_", "center_")
+            # Убираем цифру в конце (lip1 -> lip)
+            return "".join([i for i in res if not i.isdigit()])
+
+        # 3. Правило Brows (right_Brow1 -> Brow1_R)
+        if "Brow" in base:
+            if base.startswith("right_"):
+                return base.replace("right_", "") + "_R"
+            if base.startswith("left_"):
+                return base.replace("left_", "") + "_L"
+
+        # 4. Стандартное правило (просто удаление mchFcrg_)
+        return base
+
+    def _is_constrained(self, parent_node, child_node):
+        """Проверка на существующий констрейн, чтобы не плодить дубликаты."""
+        conns = cmds.listConnections(child_node, type="parentConstraint") or []
+        for c in conns:
+            drivers = cmds.parentConstraint(c, q=True, tl=True) or []
+            if parent_node in drivers:
+                return True
+        return False
