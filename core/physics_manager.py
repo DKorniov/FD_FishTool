@@ -10,14 +10,18 @@ except ImportError:
     cmds.warning("FD_FishTool: SpringMagic core не найден!")
 
 class PhysicsManager:
-    # Золотой набор анимаций для определения границ запекания
-    IMPORTANT_ANIMS = [
-        "normal_move", 
+    # 1. Анимации для особых плавников (SideFin, SideFin2, HeadFin)
+    FIN_ANIMS = [
         "plavnik_normal_move", 
         "plavnik_normal_move2", 
-        "wait_pose", 
         "plavnik_wait_pose", 
         "plavnik_crowded"
+    ]
+    
+    # 2. Анимации для всех остальных частей тела (BellyFin, DorsalFin, Tail и др.)
+    BODY_ANIMS = [
+        "normal_move", 
+        "wait_pose"
     ]
 
     def __init__(self, config_manager):
@@ -27,7 +31,7 @@ class PhysicsManager:
         self.anim_ranges = self._parse_etalon()
 
     def _parse_etalon(self):
-        """Парсинг эталонного файла animation.txt."""
+        """Родной парсер эталонного файла animation.txt."""
         ranges = {}
         if not self.etalon_path or not os.path.exists(self.etalon_path): 
             return ranges
@@ -36,6 +40,7 @@ class PhysicsManager:
                 for line in f:
                     parts = line.strip().split()
                     if len(parts) >= 3:
+                        # Берем имя (parts[2]) как ключ, старт и энд - как значения
                         ranges[parts[2]] = (float(parts[0]), float(parts[1]))
         except Exception as e:
             print(f"PhysicsManager: Ошибка чтения эталона: {e}")
@@ -96,10 +101,10 @@ class PhysicsManager:
         for anim_name in anim_list:
             if anim_name not in self.anim_ranges: continue
             start, end = self.anim_ranges[anim_name]
-            safe_frame = start - 30 
+            safe_frame = start - 1
             
             # Технические кадры и Padding
-            for f in [safe_frame, start-2, start-1, start, end, end+1]:
+            for f in [safe_frame,  start-1, start, end, end+1]:
                 cmds.currentTime(f)
                 if f != safe_frame:
                     # Копирование позы из безопасного кадра
@@ -114,25 +119,115 @@ class PhysicsManager:
             sm_mgr = sm_core.SpringMagic(start, end, isLoop=is_loop)
             
             sm_objs = [pm.PyNode(p) for p in proxy_chain]
-            sm_core.SpringMagicMaya(sm_objs, sm_settings, sm_mgr)
-
+            sm_core.SpringMagicMaya(sm_objs, sm_settings, sm_mgr)           
+            
         return proxy_chain
 
-    def final_bake(self, all_proxies):
-        """Запекание в полезном диапазоне 9-189."""
-        if not all_proxies: return
+    def clean_unused_intervals(self, ctrl_anim_map, total_start, total_end):
+        """
+        Персональная очистка: принимает словарь {контрол: [список_его_анимаций]}.
+        """
+        if not ctrl_anim_map or not self.anim_ranges:
+            return
+
+        print("\n--- ОЧИСТКА МЕЖКЛИПОВЫХ ИНТЕРВАЛОВ ---")
+        attributes = ['tx', 'ty', 'tz', 'rx', 'ry', 'rz']
+
+        for ctrl, anims in ctrl_anim_map.items():
+            if not cmds.objExists(ctrl):
+                continue
+                
+            # 1. Собираем защищенные кадры ИМЕННО ДЛЯ ЭТОГО КОНТРОЛА
+            kept_frames = set()
+            for name in anims:
+                if name in self.anim_ranges:
+                    start, end = self.anim_ranges[name]
+                    for f in range(int(start), int(end) + 1):
+                        kept_frames.add(f)
+                    kept_frames.add(int(start) - 1)
+                    kept_frames.add(int(end) + 1)
+
+            # 2. Вычисляем мусор
+            frames_to_cut = sorted([f for f in range(int(total_start), int(total_end) + 1) if f not in kept_frames])
+            
+            if not frames_to_cut:
+                continue
+
+            # 3. Группируем в интервалы
+            intervals = []
+            curr_start = frames_to_cut[0]
+            for i in range(1, len(frames_to_cut)):
+                if frames_to_cut[i] != frames_to_cut[i-1] + 1:
+                    intervals.append((curr_start, frames_to_cut[i-1]))
+                    curr_start = frames_to_cut[i]
+            intervals.append((curr_start, frames_to_cut[-1]))
+
+            # 4. Удаляем
+            for start_f, end_f in intervals:
+                cmds.cutKey(ctrl, time=(start_f - 0.1, end_f + 0.1), attribute=attributes, clear=True)
+                
+            print(f" -> Очищен {ctrl}. Оставлены анимации: {anims}")
+
+        print("--------------------------------------\n")
+
+    def final_bake(self, all_proxies, proxy_anim_map=None):
+        """Запекание в полезном диапазоне и очистка мусора."""
+        print("\n=== ЗАПУСК FINAL BAKE (ПЕРЕНОС ФИЗИКИ) ===")
+        if not all_proxies: 
+            return
+            
+        # Узнаем общий диапазон запекания по всем вообще использованным в этот раз клипам
+        all_used_anims = set()
+        if proxy_anim_map:
+            for anims in proxy_anim_map.values():
+                all_used_anims.update(anims)
+        else:
+            all_used_anims = set(self.IMPORTANT_ANIMS)
+
         starts, ends = [], []
-        for name in self.IMPORTANT_ANIMS:
+        for name in all_used_anims:
             if name in self.anim_ranges:
                 starts.append(self.anim_ranges[name][0])
                 ends.append(self.anim_ranges[name][1])
         
-        if not starts: return
+        if not starts: 
+            print("ВНИМАНИЕ: Нужные анимации не найдены в базе. Прерывание.")
+            return
+            
         f_start, f_end = min(starts) - 1, max(ends) + 1
-        
+             
+        # --- СБОР ОРИГИНАЛЬНЫХ КОНТРОЛЛЕРОВ И ИХ ЗАДАНИЙ ---
+        ctrl_anim_map = {}
+        relevant_controls = []
+        for p in all_proxies:
+            # Чистим имя (защита от полных путей)
+            orig_ctrl = p.split('|')[-1].replace('_SpringProxy', '')
+            if cmds.objExists(orig_ctrl) and not orig_ctrl.startswith("locAlign_"):
+                relevant_controls.append(orig_ctrl)
+                # Переносим список анимаций с прокси на оригинальный контрол
+                if proxy_anim_map and p in proxy_anim_map:
+                    ctrl_anim_map[orig_ctrl] = proxy_anim_map[p]
+                else:
+                    ctrl_anim_map[orig_ctrl] = self.IMPORTANT_ANIMS
+
+        # --- ШАГ 1: Запекание и удаление прокси (SpringMagic native) ---               
         cmds.playbackOptions(min=f_start, max=f_end, ast=f_start, aet=f_end)
-        pm.select([pm.PyNode(p) for p in all_proxies])
-        sm_core.clearBind(f_start, f_end)
         
+        valid_proxies = [p for p in all_proxies if cmds.objExists(p)]
+        if valid_proxies:
+            cmds.select(valid_proxies, replace=True)
+            sm_core.clearBind(f_start, f_end)
+        
+        # Очистка локаторов
         locs = cmds.ls("locAlign_*")
         if locs: cmds.delete(locs)
+
+        # --- ШАГ 2: Индивидуальная очистка лишних ключей ---
+        self.clean_unused_intervals(ctrl_anim_map, f_start, f_end)
+        
+        # --- ФИНАЛЬНОЕ ВЫДЕЛЕНИЕ ---
+        valid_controls = [c for c in relevant_controls if cmds.objExists(c)]
+        if valid_controls:
+            cmds.select(valid_controls, replace=True)
+            
+        print("=== FINAL BAKE ЗАВЕРШЕН УСПЕШНО ===\n")

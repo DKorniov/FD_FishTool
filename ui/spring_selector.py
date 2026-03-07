@@ -115,6 +115,7 @@ class SpringSelectorWindow(QtWidgets.QDialog):
             return
         
         all_proxies = []
+        proxy_anim_map = {}  # НОВОЕ: Словарь, связывающий прокси и нужные ему анимации
         
         # Определяем наборы анимаций для разных групп по эталону
         fin_anims = ["plavnik_normal_move", "plavnik_normal_move2", "plavnik_wait_pose", "plavnik_crowded"]
@@ -122,8 +123,8 @@ class SpringSelectorWindow(QtWidgets.QDialog):
 
         # Процесс: LAT -> Bind -> Apply (для каждого клипа)
         for key, roots in self.mapping.items():
-            # Выбор списка анимаций в зависимости от группы
-            anims = fin_anims if key in ["SideFin", "SideFin2", "BellyFin"] else other_anims
+            # Добавил HeadFin к плавникам (при необходимости скорректируйте список)
+            anims = fin_anims if key in ["SideFin", "SideFin2", "BellyFin", "HeadFin"] else other_anims
             
             for r in roots:
                 # Вызов основного рабочего метода физики
@@ -135,9 +136,13 @@ class SpringSelectorWindow(QtWidgets.QDialog):
                     is_loop=self.chk_loop.isChecked()
                 )
                 all_proxies.extend(proxies)
+                
+                # Запоминаем, какой список анимаций нужен каждому прокси
+                for p in proxies:
+                    proxy_anim_map[p] = anims
 
-        # Финальное запекание на контролы в диапазоне 9-189
-        self.physics_mgr.final_bake(all_proxies)
+        # Финальное запекание (передаем карту анимаций)
+        self.physics_mgr.final_bake(all_proxies, proxy_anim_map)
         
         QtWidgets.QMessageBox.information(self, "Success", "Все физические циклы запечены и очищены.")
         self.accept()
