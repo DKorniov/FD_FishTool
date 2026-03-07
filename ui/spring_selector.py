@@ -84,25 +84,55 @@ class SpringSelectorWindow(QtWidgets.QDialog):
 
     def assign(self, key):
         """
-        Назначает выделенный контрол в группу и ищет симметричную пару.
-        :param key: Ключ группы (напр. 'SideFin')
+        Назначает выделенные контролы в группу.
+        Если выделен 1 контрол - логика авто-цепи (поиск детей).
+        Если выделено >1 контролов - ручная цепь в порядке выделения.
         """
-        sel = cmds.ls(sl=True)
+        # Используем orderedSelection, чтобы гарантированно получить порядок кликов пользователя
+        sel = cmds.ls(orderedSelection=True) or cmds.ls(selection=True)
         if not sel:
             return
         
-        root_ctrl = sel[0]
-        # Используем метод симметрии из менеджера
-        sym_ctrl = self.physics_mgr.get_symmetric_control(root_ctrl)
+        is_manual_chain = len(sel) > 1
         
-        roots = [root_ctrl]
-        display_text = root_ctrl
+        primary_chain = sel
+        sym_chain = []
         
-        if sym_ctrl and cmds.objExists(sym_ctrl):
-            roots.append(sym_ctrl)
-            display_text += f" + {sym_ctrl} (Auto-Sym)"
+        # Поиск симметрии
+        if is_manual_chain:
+            # Для ручной цепи проверяем симметрию каждого элемента в порядке выделения
+            for ctrl in primary_chain:
+                sym = self.physics_mgr.get_symmetric_control(ctrl)
+                if sym and cmds.objExists(sym):
+                    sym_chain.append(sym)
+                else:
+                    # Если хотя бы у одного звена нет пары, симметричная цепь инвалидируется
+                    sym_chain = []
+                    break
+        else:
+            # Стандартная логика для 1 корневого контрола
+            root_ctrl = primary_chain[0]
+            sym = self.physics_mgr.get_symmetric_control(root_ctrl)
+            if sym and cmds.objExists(sym):
+                sym_chain = [sym]
+
+        # Сохраняем цепи в mapping
+        chains = [primary_chain]
+        if sym_chain:
+            chains.append(sym_chain)
             
-        self.mapping[key] = roots
+        self.mapping[key] = chains
+        
+        # Обновляем текст в UI
+        if is_manual_chain:
+            display_text = f"Chain: {primary_chain[0]}... ({len(primary_chain)} ctrls)"
+            if sym_chain:
+                display_text += " + Sym"
+        else:
+            display_text = primary_chain[0]
+            if sym_chain:
+                display_text += f" + {sym_chain[0]} (Auto-Sym)"
+                
         self.ui_inputs[key].setText(display_text)
         self.ui_inputs[key].setStyleSheet("background-color: #2b4433; color: white;")
 
@@ -115,21 +145,18 @@ class SpringSelectorWindow(QtWidgets.QDialog):
             return
         
         all_proxies = []
-        proxy_anim_map = {}  # НОВОЕ: Словарь, связывающий прокси и нужные ему анимации
+        proxy_anim_map = {}
         
-        # Определяем наборы анимаций для разных групп по эталону
         fin_anims = ["plavnik_normal_move", "plavnik_normal_move2", "plavnik_wait_pose", "plavnik_crowded"]
         other_anims = ["normal_move", "wait_pose"]
 
-        # Процесс: LAT -> Bind -> Apply (для каждого клипа)
-        for key, roots in self.mapping.items():
-            # Добавил HeadFin к плавникам (при необходимости скорректируйте список)
+        for key, chains in self.mapping.items():
             anims = fin_anims if key in ["SideFin", "SideFin2", "BellyFin", "HeadFin"] else other_anims
             
-            for r in roots:
-                # Вызов основного рабочего метода физики
+            for chain in chains:
+                # Передаем цепь целиком в аргумент ctrl_chain
                 proxies = self.physics_mgr.process_spring_logic(
-                    root_ctrl=r, 
+                    ctrl_chain=chain, 
                     anim_list=anims, 
                     spring_val=self.val_spring.value(), 
                     twist_val=self.val_twist.value(), 
@@ -137,11 +164,9 @@ class SpringSelectorWindow(QtWidgets.QDialog):
                 )
                 all_proxies.extend(proxies)
                 
-                # Запоминаем, какой список анимаций нужен каждому прокси
                 for p in proxies:
                     proxy_anim_map[p] = anims
 
-        # Финальное запекание (передаем карту анимаций)
         self.physics_mgr.final_bake(all_proxies, proxy_anim_map)
         
         QtWidgets.QMessageBox.information(self, "Success", "Все физические циклы запечены и очищены.")

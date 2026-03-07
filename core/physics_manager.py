@@ -74,30 +74,45 @@ class PhysicsManager:
         cmds.move(1.25 * side_mult, 0, 0, loc, r=True, os=True, wd=True)
         return loc
 
-    def process_spring_logic(self, root_ctrl, anim_list, spring_val, twist_val, is_loop):
+    def process_spring_logic(self, ctrl_chain, anim_list, spring_val, twist_val, is_loop):
         """
         Полный цикл физики: LAT -> Bind -> CopyKeys -> Apply.
+        Если ctrl_chain состоит из 1 элемента - ищет конец автоматически (Старая логика).
+        Если >1 элемента - использует цепь строго в переданном порядке.
         """
-        end_node = self.get_chain_end(root_ctrl)
+        if not ctrl_chain: 
+            return []
+
+        # 1. Формирование финальной цепи контролов
+        if len(ctrl_chain) == 1:
+            # --- СТАРАЯ ЛОГИКА (Авто-сбор цепи) ---
+            root_ctrl = ctrl_chain[0]
+            end_node = self.get_chain_end(root_ctrl)
+            
+            actual_chain = [root_ctrl]
+            children = cmds.listRelatives(root_ctrl, ad=True, type="transform", fullPath=True) or []
+            for child in children[::-1]:
+                shapes = cmds.listRelatives(child, shapes=True) or []
+                if any(cmds.nodeType(s) == "nurbsCurve" for s in shapes):
+                    actual_chain.append(child)
+                    if child == end_node: break
+        else:
+            # --- НОВАЯ ЛОГИКА (Ручная цепь) ---
+            actual_chain = list(ctrl_chain)
+            end_node = actual_chain[-1]
+
+        # 2. Создаем локатор строго в конце цепи
         loc = self.create_aligned_locator(end_node)
+        actual_chain.append(loc)
         
-        # Сбор цепи nurbsCurve от выделенного контрола вниз
-        chain = [root_ctrl]
-        children = cmds.listRelatives(root_ctrl, ad=True, type="transform", fullPath=True) or []
-        for child in children[::-1]:
-            shapes = cmds.listRelatives(child, shapes=True) or []
-            if any(cmds.nodeType(s) == "nurbsCurve" for s in shapes):
-                chain.append(child)
-                if child == end_node: break
-        chain.append(loc)
-        
-        # Создание прокси
-        py_chain = [pm.PyNode(n) for n in chain]
+        # 3. Создание прокси
+        py_chain = [pm.PyNode(n) for n in actual_chain]
         pm.select(py_chain)
         sm_core.bindControls()
         
         proxy_chain = [n.name() + "_SpringProxy" for n in py_chain]
         
+        # 4. Просчет анимаций
         for anim_name in anim_list:
             if anim_name not in self.anim_ranges: continue
             start, end = self.anim_ranges[anim_name]
@@ -107,7 +122,6 @@ class PhysicsManager:
             for f in [safe_frame,  start-1, start, end, end+1]:
                 cmds.currentTime(f)
                 if f != safe_frame:
-                    # Копирование позы из безопасного кадра
                     cmds.copyKey(proxy_chain, time=(safe_frame, safe_frame))
                     cmds.pasteKey(proxy_chain, time=(f, f), option="merge")
                 else:
