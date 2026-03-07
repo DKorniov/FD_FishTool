@@ -210,19 +210,25 @@ class PhysicsManager:
             
         f_start, f_end = min(starts) - 1, max(ends) + 1
              
-        # --- СБОР ОРИГИНАЛЬНЫХ КОНТРОЛЛЕРОВ И ИХ ЗАДАНИЙ ---
+        # --- СБОР ОРИГИНАЛЬНЫХ КОНТРОЛЛЕРОВ И ЛОКАТОРОВ ---
         ctrl_anim_map = {}
         relevant_controls = []
+        locators_to_delete = []  # НОВОЕ: Точечный список локаторов для текущих цепей
+        
         for p in all_proxies:
             # Чистим имя (защита от полных путей)
             orig_ctrl = p.split('|')[-1].replace('_SpringProxy', '')
-            if cmds.objExists(orig_ctrl) and not orig_ctrl.startswith("locAlign_"):
-                relevant_controls.append(orig_ctrl)
-                # Переносим список анимаций с прокси на оригинальный контрол
-                if proxy_anim_map and p in proxy_anim_map:
-                    ctrl_anim_map[orig_ctrl] = proxy_anim_map[p]
+            if cmds.objExists(orig_ctrl):
+                if orig_ctrl.startswith("locAlign_"):
+                    # Собираем ТОЛЬКО локаторы, относящиеся к текущей операции
+                    locators_to_delete.append(orig_ctrl)
                 else:
-                    ctrl_anim_map[orig_ctrl] = self.IMPORTANT_ANIMS
+                    relevant_controls.append(orig_ctrl)
+                    # Переносим список анимаций с прокси на оригинальный контрол
+                    if proxy_anim_map and p in proxy_anim_map:
+                        ctrl_anim_map[orig_ctrl] = proxy_anim_map[p]
+                    else:
+                        ctrl_anim_map[orig_ctrl] = self.IMPORTANT_ANIMS
 
         # --- ШАГ 1: Запекание и удаление прокси (SpringMagic native) ---               
         cmds.playbackOptions(min=f_start, max=f_end, ast=f_start, aet=f_end)
@@ -232,9 +238,11 @@ class PhysicsManager:
             cmds.select(valid_proxies, replace=True)
             sm_core.clearBind(f_start, f_end)
         
-        # Очистка локаторов
-        locs = cmds.ls("locAlign_*")
-        if locs: cmds.delete(locs)
+        # ТОЧЕЧНАЯ ОЧИСТКА ЛОКАТОРОВ (Удаляем только те, что сами создали)
+        valid_locs = [loc for loc in locators_to_delete if cmds.objExists(loc)]
+        if valid_locs: 
+            cmds.delete(valid_locs)
+            print(f"[-] Удалены вспомогательные локаторы цепи: {valid_locs}")
 
         # --- ШАГ 2: Индивидуальная очистка лишних ключей ---
         self.clean_unused_intervals(ctrl_anim_map, f_start, f_end)
