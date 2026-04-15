@@ -2,7 +2,7 @@
 import os
 import sys
 import importlib
-from PySide2 import QtWidgets, QtCore, QtGui
+from PySide2 import QtWidgets, QtCore, QtGui, QtUiTools
 import maya.cmds as cmds
 
 
@@ -36,11 +36,40 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         self.setMinimumSize(500, 850)
         
         self.init_ui()
+        
         self.refresh_anim_list()
         self.face_tab = FaceRigTab()
-        self.tabs.addTab(self.face_tab, "Face Rig")
-
+        if hasattr(self.ui, 'tabs'):
+            self.ui.tabs.addTab(self.face_tab, "Face Rig")
+    
     def init_ui(self):
+        # 1. Загружаем визуальный интерфейс из файла .ui
+        from PySide2 import QtUiTools
+        loader = QtUiTools.QUiLoader()
+        ui_file_path = os.path.join(os.path.dirname(__file__), "main_window.ui")
+        
+        ui_file = QtCore.QFile(ui_file_path)
+        ui_file.open(QtCore.QFile.ReadOnly)
+        self.ui = loader.load(ui_file, self)
+        ui_file.close()
+
+        # 2. Устанавливаем загруженный интерфейс
+        self.setCentralWidget(self.ui.centralWidget())
+
+        # 3. Настраиваем вкладки (Tab Widget)
+        # Очищаем стандартные вкладки (Tab 1, Tab 2), которые Designer создает по умолчанию
+        if hasattr(self.ui, 'tabs'):
+            self.ui.tabs.clear()
+            # Добавляем наши старые вкладки, написанные на Python
+            self.ui.tabs.addTab(self.ui_rigging_tab(), "Rigging")
+            self.ui.tabs.addTab(self.ui_animation_tab(), "Animation")
+            self.ui.tabs.addTab(self.ui_export_tab(), "Export")
+
+        # 4. Подключаем кнопку настроек
+        if hasattr(self.ui, 'btn_settings'):
+            self.ui.btn_settings.clicked.connect(self.open_settings)
+
+    '''def init_ui(self):
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
         layout = QtWidgets.QVBoxLayout(central)
@@ -57,7 +86,7 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         btn_settings = QtWidgets.QPushButton("⚙ Настройки Пайплайна")
         btn_settings.setMinimumHeight(40)
         btn_settings.clicked.connect(self.open_settings)
-        layout.addWidget(btn_settings)
+        layout.addWidget(btn_settings)'''
 
     def ui_rigging_tab(self):
         """Вкладка риггинга: Здесь мы работаем над телом и ИИ."""
@@ -66,10 +95,10 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         
         # Виджет логики тела (наш новый модуль)
         self.rig_body_ui = RigBodyWidget(config=self.cfg)
-        layout.addWidget(self.rig_body_ui)
+        layout.addWidget(self.rig_body_ui,1)
         
         # AI Rig Assistant
-        ai_group = QtWidgets.QGroupBox("AI Rig Assistant")
+        '''ai_group = QtWidgets.QGroupBox("AI Rig Assistant")
         ai_lay = QtWidgets.QVBoxLayout(ai_group)
         self.ai_input = QtWidgets.QLineEdit()
         self.ai_input.setPlaceholderText("Напр: 'Исправь веса на хвосте'...")
@@ -77,9 +106,9 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         btn_ai = QtWidgets.QPushButton("✨ АНАЛИЗ СЦЕНЫ")
         btn_ai.clicked.connect(lambda: print(f"AI Analysing: {self.ai_input.text()}"))
         ai_lay.addWidget(btn_ai)
-        layout.addWidget(ai_group)
+        layout.addWidget(ai_group)'''
 
-        layout.addStretch()
+        #layout.addStretch()
         return tab
 
     def ui_animation_tab(self):
