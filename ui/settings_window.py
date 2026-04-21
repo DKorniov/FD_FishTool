@@ -59,6 +59,14 @@ class SettingsWindow(QtWidgets.QDialog):
         btn_legacy.clicked.connect(lambda: self.browse_folder(self.legacy_path_ui))
         grid.addWidget(btn_legacy, 3, 2)
 
+        # 5. Путь к Advanced Skeleton
+        grid.addWidget(QtWidgets.QLabel("Advanced Skeleton:"), 4, 0)
+        self.adv_skeleton_path_ui = QtWidgets.QLineEdit()
+        grid.addWidget(self.adv_skeleton_path_ui, 4, 1)
+        btn_adv = QtWidgets.QPushButton("Обзор")
+        btn_adv.clicked.connect(lambda: self.browse_file(self.adv_skeleton_path_ui, "Maya Scripts (*.mel *.py)"))
+        grid.addWidget(btn_adv, 4, 2)
+
         main_layout.addWidget(paths_group)
 
         # Информационная плашка
@@ -104,6 +112,8 @@ class SettingsWindow(QtWidgets.QDialog):
             self.anim_data_ui.setText(data.get("animation_data", ""))
             self.bone_map_ui.setText(data.get("bone_map_file", ""))
             self.legacy_path_ui.setText(data.get("legacy_exporter_path", ""))
+            # Загружаем путь AS5
+            self.adv_skeleton_path_ui.setText(data.get("advanced_skeleton_path", ""))
         except Exception as e:
             print(f"FD_FishTool: Ошибка загрузки настроек: {e}")
 
@@ -113,7 +123,8 @@ class SettingsWindow(QtWidgets.QDialog):
             "export_path": self.export_path_ui.text(),
             "animation_data": self.anim_data_ui.text(),
             "bone_map_file": self.bone_map_ui.text(),
-            "legacy_exporter_path": self.legacy_path_ui.text()
+            "legacy_exporter_path": self.legacy_path_ui.text(),            
+            "advanced_skeleton_path": self.adv_skeleton_path_ui.text(),
         }
         
         try:

@@ -6,6 +6,119 @@ from FD_FishTool.core.rig_body import BodyRigManager
 from FD_FishTool.ui.weight_blender_ui import WeightBlenderWidget
 from FD_FishTool.ui.easy_ease_ui import EasyEaseWidget
 
+class MaterialPlacementDialog(QtWidgets.QDialog):
+    """Диалоговое окно для последовательного назначения материалов."""
+    def __init__(self, steps, callback, parent=None):
+        super(MaterialPlacementDialog, self).__init__(parent)
+        self.setWindowTitle("Назначение материалов")
+        self.setMinimumSize(300, 160)
+        self.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.WindowStaysOnTopHint)
+        self.setModal(False)
+        
+        self.steps = steps
+        self.callback = callback
+        self.results = []
+        self.step_idx = 0
+        
+        layout = QtWidgets.QVBoxLayout(self)
+        self.lbl = QtWidgets.QLabel(f"<b>Шаг {self.step_idx + 1}/{len(self.steps)}:</b><br><br>{self.steps[0]}")
+        self.lbl.setWordWrap(True)
+        self.lbl.setAlignment(QtCore.Qt.AlignCenter)
+        layout.addWidget(self.lbl)
+        
+        self.btn_confirm = QtWidgets.QPushButton("Назначить выделенному (Далее)")
+        self.btn_confirm.setFixedHeight(40)
+        self.btn_confirm.setStyleSheet("background-color: #2e86c1; color: white; font-weight: bold;")
+        self.btn_confirm.clicked.connect(self._confirm)
+        layout.addWidget(self.btn_confirm)
+        
+        self.btn_skip = QtWidgets.QPushButton("Пропустить этот материал")
+        self.btn_skip.clicked.connect(self._skip)
+        layout.addWidget(self.btn_skip)
+
+        self.btn_cancel = QtWidgets.QPushButton("Отмена")
+        self.btn_cancel.clicked.connect(self.close)
+        layout.addWidget(self.btn_cancel)
+
+    def _confirm(self):
+        # Сохраняем текущее выделение (полигоны или объекты)
+        sel = cmds.ls(sl=True, flatten=True)
+        if not sel:
+            cmds.warning("FD_FishTool: Ничего не выделено! Выделите полигоны или нажмите 'Пропустить'.")
+            return
+        self.results.append(sel)
+        self._next_step()
+
+    def _skip(self):
+        self.results.append([])
+        self._next_step()
+        
+    def _next_step(self):
+        self.step_idx += 1
+        cmds.select(clear=True) # Сбрасываем выделение для следующего шага
+        if self.step_idx < len(self.steps):
+            self.lbl.setText(f"<b>Шаг {self.step_idx + 1}/{len(self.steps)}:</b><br><br>{self.steps[self.step_idx]}")
+        else:
+            self.callback(self.results)
+            self.close()
+
+class HelpDialog(QtWidgets.QDialog):
+    """Универсальное окно справки с поддержкой текста, изображений и GIF."""
+    def __init__(self, title, html_text, image_filename=None, parent=None):
+        super(HelpDialog, self).__init__(parent)
+        self.setWindowTitle(title)
+        self.setMinimumSize(400, 300)
+        # Окно будет поверх Maya, но не заблокирует её работу (Modeless)
+        self.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.WindowStaysOnTopHint)
+        
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+
+        # 1. БЛОК ИЗОБРАЖЕНИЯ ИЛИ GIF
+        if image_filename:
+            # Ищем файл в папке data/help
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            img_path = os.path.join(current_dir, "..", "data", "help", image_filename)
+            img_path = os.path.normpath(img_path)
+
+            if os.path.exists(img_path):
+                img_label = QtWidgets.QLabel()
+                img_label.setAlignment(QtCore.Qt.AlignCenter)
+                
+                # Если это GIF - запускаем через QMovie
+                if img_path.lower().endswith('.gif'):
+                    self.movie = QtGui.QMovie(img_path)
+                    img_label.setMovie(self.movie)
+                    self.movie.start()
+                # Если статичная картинка - грузим через QPixmap
+                else:
+                    pixmap = QtGui.QPixmap(img_path)
+                    # Слегка масштабируем, если картинка огромная
+                    pixmap = pixmap.scaled(600, 600, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+                    img_label.setPixmap(pixmap)
+                    
+                layout.addWidget(img_label)
+            else:
+                # Заглушка, если файл не найден
+                err_lbl = QtWidgets.QLabel(f"<i>[Изображение не найдено: data/help/{image_filename}]</i>")
+                err_lbl.setStyleSheet("color: red;")
+                err_lbl.setAlignment(QtCore.Qt.AlignCenter)
+                layout.addWidget(err_lbl)
+
+        # 2. БЛОК ТЕКСТА
+        text_label = QtWidgets.QLabel(html_text)
+        text_label.setWordWrap(True)
+        text_label.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
+        text_label.setStyleSheet("font-size: 10pt;")
+        layout.addWidget(text_label)
+
+        # 3. КНОПКА ЗАКРЫТИЯ
+        btn_close = QtWidgets.QPushButton("Понятно")
+        btn_close.setFixedHeight(35)
+        btn_close.clicked.connect(self.close)
+        layout.addWidget(btn_close)
+
 class AddBoneDialog(QtWidgets.QDialog):
     """Диалоговое окно для добавления кости в список UI (Аналог addBoneUI из оригинала)."""
     def __init__(self, bone_list, parent=None):
@@ -132,25 +245,44 @@ class RigBodyWidget(QtWidgets.QWidget):
     def _connect_rig_manager(self):
         """Подключает кнопки подготовки модели, костей, стадий скиннинга и анимаций к BodyRigManager."""
         
-        # --- Блок: Target Mesh Selection ---
-        if hasattr(self.ui, 'btn_get_mesh'):
-            self.ui.btn_get_mesh.clicked.connect(self._get_mesh_from_sel)
-            
         # --- Блок: Model Prepare ---
-        if hasattr(self.ui, 'pushButton_9'): # "let the clownFish out"
-            self.ui.pushButton_9.clicked.connect(lambda *args: print("FD_FishTool: Выпускаем рыбу-клоуна! (Заглушка)"))
-        if hasattr(self.ui, 'pushButton_4'): # "check all"
-            self.ui.pushButton_4.clicked.connect(self._run_model_check)
+        if hasattr(self.ui, 'btn_import_sizecheck_mesh'): # Бывшая pushButton_9 ("let the clownFish out")
+            self.ui.btn_import_sizecheck_mesh.clicked.connect(
+                lambda *args: self.manager.import_sizecheck_mesh()
+            )
             
+        if hasattr(self.ui, 'btn_clean_model_all'): # Бывшая pushButton_4 ("clean all")
+            self.ui.btn_clean_model_all.clicked.connect(
+                lambda *args: self.manager.snap_pivot_to_zero_and_freeze()
+            )
+            
+        if hasattr(self.ui, 'btn_check_model_all'): # Бывшая pushButton ("check all")
+            self.ui.btn_check_model_all.clicked.connect(
+                lambda *args: self.manager.check_model_symmetry(self.mesh_combo.currentText())
+            )
+            
+        
         # --- Блок: Bones Controls ---
-        if hasattr(self.ui, 'pushButton_5'): # "open AS5"
-            self.ui.pushButton_5.clicked.connect(lambda *args: print("FD_FishTool: Открытие AS5..."))
-        if hasattr(self.ui, 'pushButton_6'): # "change bones color"
-            self.ui.pushButton_6.clicked.connect(lambda *args: print("FD_FishTool: Изменение цвета костей..."))
-        if hasattr(self.ui, 'pushButton_7'): # "MEtabones Outliner"
-            self.ui.pushButton_7.clicked.connect(lambda *args: print("FD_FishTool: Открытие MEtabones Outliner..."))
+        if hasattr(self.ui, 'btn_advansedSceleton'): # Бывшая pushButton_5 ("open AS5")
+            self.ui.btn_advansedSceleton.clicked.connect(
+                lambda *args: self.manager.launch_advanced_skeleton()
+            )
+            
+        if hasattr(self.ui, 'btn_bone_color'): # Бывшая pushButton_6 ("change bones color")
+            self.ui.btn_bone_color.clicked.connect(self._change_bones_color)
+            
+        if hasattr(self.ui, 'btn_metaBones_Outliner_color'): # Бывшая pushButton_7 ("MEtabones Outliner")
+            self.ui.btn_metaBones_Outliner_color.clicked.connect(
+                lambda *args: self.manager.colorize_meta_bones_in_outliner()
+            )
+        if hasattr(self.ui, 'btn_default_bones_color'): # Сброс цвета костей
+            self.ui.btn_default_bones_color.clicked.connect(
+                lambda *args: self.manager.reset_bones_color(
+                    all_bones=self.ui.for_all_bones_checkBox.isChecked() if hasattr(self.ui, 'for_all_bones_checkBox') else False
+                )
+            )
         if hasattr(self.ui, 'btn_texture_load'): 
-            self.ui.btn_texture_load.clicked.connect(lambda *args: print("FD_FishTool: Загрузка текстур..."))
+            self.ui.btn_texture_load.clicked.connect(self._run_texture_load_logic)
 
         # --- Блок: Staged Skinning ---
         # Stage 1: Body
@@ -176,6 +308,10 @@ class RigBodyWidget(QtWidgets.QWidget):
             self.ui.btn_stage3_add.clicked.connect(
                 lambda *args: self.manager.add_to_skin_logic(3, self.mesh_combo.currentText())
             )
+        
+        # Staged Skinning info
+        if hasattr(self.ui, 'btn_info_stage_skin'): # Бывшая pushButton_18
+            self.ui.btn_info_stage_skin.clicked.connect(self._show_stage_skin_help)
 
         # --- Блок: Adaptive Gradient ---
         if hasattr(self.ui, 'btn_Apply_adaptive_gradient'):
@@ -190,10 +326,23 @@ class RigBodyWidget(QtWidgets.QWidget):
             )
 
         # --- Блок: Test Animations ---
-        if hasattr(self.ui, 'pushButton_2'): # "Body Animation test"
-            self.ui.pushButton_2.clicked.connect(lambda *args: print("FD_FishTool: Тест анимации тела..."))
-        if hasattr(self.ui, 'pushButton_3'): # "META Animation test"
-            self.ui.pushButton_3.clicked.connect(lambda *args: print("FD_FishTool: Тест META-анимации..."))
+        if hasattr(self.ui, 'btn_body_test_anim'): # Бывшая pushButton_2
+            self.ui.btn_body_test_anim.clicked.connect(
+                lambda *args: self.manager.apply_test_animation("body_test_anim")
+            )
+            
+        if hasattr(self.ui, 'btn_meta_test_anim'): # Бывшая pushButton_3
+            self.ui.btn_meta_test_anim.clicked.connect(
+                lambda *args: self.manager.apply_test_animation("META_test_anim")
+            )
+            
+        if hasattr(self.ui, 'btn_delete_all_anim'): # Новая кнопка
+            self.ui.btn_delete_all_anim.clicked.connect(
+                lambda *args: self.manager.delete_all_test_animation()
+            )
+        
+        if hasattr(self.ui, 'btn_info_skin_animation'): # Бывшая pushButton_20
+            self.ui.btn_info_skin_animation.clicked.connect(self._show_skin_anim_help)
 
     def _get_mesh_from_sel(self, *args):
         """Берет выделенный во вьюпорте меш и делает его активным в ComboBox."""
@@ -556,3 +705,141 @@ class RigBodyWidget(QtWidgets.QWidget):
         """Универсальный враппер: Выполняет любую функцию ядра и принудительно обновляет списки UI."""
         core_func(*args, **kwargs)
         self._refresh_weight_lists()
+    
+    def _change_bones_color(self, *args):
+        """Открывает палитру и передает цвет выделенным костям."""
+        # Быстрая проверка, чтобы не открывать палитру, если ничего не выделено
+        sel = cmds.ls(sl=True, type='joint')
+        if not sel:
+            cmds.warning("FD_FishTool: Сначала выделите кости во вьюпорте!")
+            return
+            
+        # Открываем стандартный диалог выбора цвета PyQt/PySide
+        color = QtWidgets.QColorDialog.getColor()
+        
+        if color.isValid():
+            # Maya принимает цвета в диапазоне 0.0 - 1.0 (а не 0-255)
+            # У QColor есть удобные методы redF(), greenF(), blueF() для этого
+            rgb_tuple = (color.redF(), color.greenF(), color.blueF())
+            self.manager.set_bones_color(rgb_tuple)
+
+    ## =========================================================================
+    # БЛОК ТЕКСТУР И МАТЕРИАЛОВ (ПОСЛЕ НАЖАТИЯ КНОПКИ "LOAD TEXTURE")
+    # =========================================================================
+
+    def _run_texture_load_logic(self, *args):
+        """Запускает процесс поиска текстуры, создания и распределения материалов."""
+        
+        # 1. ПРОВЕРКА НАЛИЧИЯ МЕША (Если ничего не выбрано - останавливаем скрипт)
+        base_mesh = self.mesh_combo.currentText()
+        if not base_mesh or not cmds.objExists(base_mesh):
+            cmds.warning("FD_FishTool: ОШИБКА! Сначала выберите базовый меш в списке 'TargetMeshSelection'!")
+            return
+
+        mat_names = ["mat_opaque", "mat_transparent", "mat_overlap_eyes", "mat_overlap_teeth"]
+        existing = [m for m in mat_names if cmds.objExists(m)]
+        overwrite = True
+        
+        # 2. ПРОВЕРКА СУЩЕСТВУЮЩИХ МАТЕРИАЛОВ
+        if existing:
+            reply = QtWidgets.QMessageBox.question(
+                self, "Материалы найдены", 
+                "Материалы рыбы уже существуют в сцене. Перезаписать их и обновить текстуру?",
+                QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
+            )
+            # Если пользователь нажал "Нет" - скрипт полностью останавливается
+            if reply == QtWidgets.QMessageBox.No: 
+                print("FD_FishTool: Операция отменена пользователем. Материалы оставлены без изменений.")
+                return
+            overwrite = True
+        
+        # 3. ПОИСК ТЕКСТУРЫ
+        texture_path = None
+        textures = self.manager.find_textures_in_project()
+        
+        if len(textures) == 1:
+            texture_path = textures[0]
+        elif len(textures) > 1:
+            item, ok = QtWidgets.QInputDialog.getItem(self, "Выбор текстуры", "Найдено несколько текстур в sourceimages:", textures, 0, False)
+            if ok and item: texture_path = item
+            else: return
+        else:
+            # Если текстур нет или сцена Untitled - открываем проводник
+            texture_path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Выберите текстуру рыбы", "", "Images (*.png *.jpg *.jpeg *.tif *.tga)")
+            if not texture_path: return
+        
+        # 4. СОЗДАНИЕ МАТЕРИАЛОВ
+        self.sgs = self.manager.create_fish_materials(texture_path, overwrite=overwrite)
+        
+        # 5. НАЗНАЧЕНИЕ MAT_OPAQUE НА БАЗОВЫЙ МЕШ
+        self.manager.assign_material(base_mesh, self.sgs.get("mat_opaque", "mat_opaqueSG"))
+        print(f"FD_FishTool: mat_opaque назначен на {base_mesh}.")
+        
+        # 6. ОЧИСТКА СТАРЫХ ОКОН (Защита от дублирования окон)
+        if hasattr(self, 'mat_dialog') and self.mat_dialog:
+            try:
+                self.mat_dialog.close()
+                self.mat_dialog.deleteLater()
+            except:
+                pass
+
+        # 7. ЗАПУСК ДИАЛОГА ДЛЯ ОСТАЛЬНЫХ МАТЕРИАЛОВ
+        steps = [
+            "Выделите полигоны (Faces) или объекты для <b>Плавников</b><br>(mat_transparent)",
+            "Выделите полигоны (Faces) или объекты для <b>Глаз</b><br>(mat_overlap_eyes)",
+            "Выделите полигоны (Faces) или объекты для <b>Зубов</b><br>(mat_overlap_teeth)"
+        ]
+        self.mat_dialog = MaterialPlacementDialog(steps, self._on_materials_assigned, parent=self)
+        self.mat_dialog.show()
+
+    def _on_materials_assigned(self, results):
+        """Коллбэк, который срабатывает после прохождения всех шагов диалога."""
+        mats = ["mat_transparent", "mat_overlap_eyes", "mat_overlap_teeth"]
+        for sel, mat_name in zip(results, mats):
+            if sel:
+                sg = self.sgs.get(mat_name, mat_name + "SG")
+                self.manager.assign_material(sel, sg)
+                print(f"FD_FishTool: {mat_name} назначен на {len(sel)} элементов.")
+        
+        cmds.select(clear=True)
+        print("FD_FishTool: Настройка материалов успешно завершена!")
+
+    ## =========================================================================
+    # БЛОК окон подсказки
+    # =========================================================================
+
+          
+
+    def _show_stage_skin_help(self, *args):
+        title = "Справка | Staged Skinning"
+        text = """
+        <b>Поэтапный скиннинг (Staged Skinning)</b><br><br>
+        Этот инструмент позволяет разбить сложный скиннинг рыбы на логические этапы:
+        <ol>
+            <li><b>Body (Тело)</b> — скиннинг основной массы без учета плавников.</li>
+            <li><b>Side Fins (Боковые плавники)</b> — добавление весов локальным элементам.</li>
+            <li><b>Vert Fins (Верхние/нижние плавники)</b> — финализация.</li>
+        </ol>
+        <i>*Используйте кнопки Select и Add для работы с выделенными вертексами.</i>
+        """
+
+        # Имя картинки или гифки (положишь в data/help/stage_skin_help.gif)
+        #dlg = HelpDialog(title, text, image_filename="stage_skin_help.gif", parent=self)
+        #dlg.exec_() # exec_() делает окно модальным, пока юзер его не закроет
+        # Вызываем без картинки!
+        dlg = HelpDialog(title, text, parent=self)
+        dlg.exec_()
+
+    def _show_skin_anim_help(self, *args):
+        title = "Справка | Skin Animations"
+        text = """
+        <b>Тестовые анимации (Test Animations)</b><br><br>
+        Инструмент накладывает на контролы ключи из файла <b>body_test_anim.json</b>.<br>
+        Это позволяет быстро проверить, как деформируется меш (скиннинг) в крайних позах.<br><br>
+        • Нажмите <b>Body</b> или <b>META</b> для загрузки пресета.<br>
+        • При повторном нажатии анимация сбросится и перезапишется.<br>
+        • Кнопка очистки вернет все контролы в Bind Pose.
+        """
+        # Вызываем без картинки!
+        dlg = HelpDialog(title, text, parent=self)
+        dlg.exec_()
