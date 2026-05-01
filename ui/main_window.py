@@ -112,61 +112,43 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         return tab
 
     def ui_animation_tab(self):
-        """Вкладка анимации: Обновленная версия с интеграцией AnimAssist."""
-        tab = QtWidgets.QWidget()
-        # Сохраняем layout в self, чтобы избежать AttributeError в будущем
-        self.ui_animation_tab_layout = QtWidgets.QVBoxLayout(tab)
+        """Вкладка анимации: Обновленная версия с интеграцией AnimAssist и загрузкой из .ui."""
+        # Путь к файлу .ui
+        ui_path = os.path.join(os.path.dirname(__file__), "anim_tab.ui")
+        
+        # Динамическая загрузка интерфейса
+        loader = QtUiTools.QUiLoader()
+        file = QtCore.QFile(ui_path)
+        
+        if not file.open(QtCore.QFile.ReadOnly):
+            cmds.warning(f"FD_FishTool: Не удалось найти или открыть файл UI: {ui_path}")
+            return QtWidgets.QWidget()
+            
+        tab = loader.load(file, self)
+        file.close()
 
         # --- НОВЫЙ БЛОК: AnimAssist Integration ---
-        anim_assist_group = QtWidgets.QGroupBox("AnimAssist Management")
-        aa_lay = QtWidgets.QVBoxLayout(anim_assist_group)
-        
-        self.btn_load_anim_list = QtWidgets.QPushButton("📂 ЗАГРУЗИТЬ СПИСОК АНИМАЦИИ")
-        self.btn_load_anim_list.setFixedHeight(35)
-        self.btn_load_anim_list.setToolTip("Проверить статус AnimAssist.mel и загрузить эталонный список")
-        self.btn_load_anim_list.setStyleSheet("background-color: #3d4c5a; color: #e1e1e1; font-weight: bold;")
-        
-        # Безопасный коннект к логике
+        # Безопасный коннект к логике из загруженного UI
         try:
             from FD_FishTool.core import anim_handler
-            self.btn_load_anim_list.clicked.connect(anim_handler.AnimationHandler.load_etalon_animations)
+            tab.btn_load_anim_list.clicked.connect(anim_handler.AnimationHandler.load_etalon_animations)
         except Exception as e:
             print(f"FD_FishTool Warning: Could not connect AnimAssist button: {e}")
-            
-        aa_lay.addWidget(self.btn_load_anim_list)
-        self.ui_animation_tab_layout.addWidget(anim_assist_group)
 
         # --- СУЩЕСТВУЮЩИЙ КОД: Presets Studio Library ---
-        lib_group = QtWidgets.QGroupBox("Studio Library Presets")
-        l_lay = QtWidgets.QVBoxLayout(lib_group)
-        btn_b = QtWidgets.QPushButton("🕺 Select Set & Apply BODY Anim")
-        btn_b.clicked.connect(lambda: self.anim_mgr.apply_studio_anim("body_standart_anim.anim"))
-        btn_f = QtWidgets.QPushButton("😀 Select Set & Apply FACE Anim")
-        btn_f.clicked.connect(lambda: self.anim_mgr.apply_studio_anim("face_standart_anim.anim"))
-        l_lay.addWidget(btn_b)
-        l_lay.addWidget(btn_f)
-        self.ui_animation_tab_layout.addWidget(lib_group)
+        tab.btn_apply_body.clicked.connect(lambda: self.anim_mgr.apply_studio_anim("body_standart_anim.anim"))
+        tab.btn_apply_face.clicked.connect(lambda: self.anim_mgr.apply_studio_anim("face_standart_anim.anim"))
 
         # --- СУЩЕСТВУЮЩИЙ КОД: Physics Pipeline (SpringMagic) ---
-        sm_group = QtWidgets.QGroupBox("Physics Pipeline")
-        s_lay = QtWidgets.QVBoxLayout(sm_group)
-        btn_sm = QtWidgets.QPushButton("🧬 OPEN SPRINGMAGIC SELECTOR")
-        btn_sm.setMinimumHeight(50)
-        btn_sm.setStyleSheet("background-color: #3d5a6b; color: white; font-weight: bold;")
-        btn_sm.clicked.connect(self.open_spring_selector)
-        s_lay.addWidget(btn_sm)
-        self.ui_animation_tab_layout.addWidget(sm_group)
+        tab.btn_spring_magic.clicked.connect(self.open_spring_selector)
 
         # --- СУЩЕСТВУЮЩИЙ КОД: Дерево анимаций ---
-        self.anim_tree = QtWidgets.QTreeWidget()
-        self.anim_tree.setHeaderLabels(["Статус", "Клип", "Эталон", "В Сцене"])
+        self.anim_tree = tab.tree_anim_list
         self.anim_tree.itemClicked.connect(self.on_clip_click)
-        self.ui_animation_tab_layout.addWidget(self.anim_tree)
 
-        btn_sync = QtWidgets.QPushButton("🔄 СИНХРОНИЗИРОВАТЬ СПИСОК")
-        btn_sync.clicked.connect(self.refresh_anim_list)
-        self.ui_animation_tab_layout.addWidget(btn_sync)
-        
+        # Синхронизация
+        tab.btn_sync_list.clicked.connect(self.refresh_anim_list)
+
         return tab
 
     def ui_export_tab(self):

@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>AnimTab</class>
+ <widget class="QWidget" name="AnimTab">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QGroupBox" name="anim_assist_group">
+     <property name="title">
+      <string>AnimAssist Management</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_aa">
+      <item>
+       <widget class="QPushButton" name="btn_load_anim_list">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>35</height>
+         </size>
+        </property>
+        <property name="toolTip">
+         <string>Проверить статус AnimAssist.mel и загрузить эталонный список</string>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">background-color: #3d4c5a; color: #e1e1e1; font-weight: bold;</string>
+        </property>
+        <property name="text">
+         <string>📂 ЗАГРУЗИТЬ СПИСОК АНИМАЦИИ</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="lib_group">
+     <property name="title">
+      <string>Studio Library Presets</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_2">
+      <item>
+       <widget class="QPushButton" name="btn_apply_body">
+        <property name="text">
+         <string>🕺 Select Set &amp; Apply BODY Anim</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btn_apply_face">
+        <property name="text">
+         <string>😀 Select Set &amp; Apply FACE Anim</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="sm_group">
+     <property name="title">
+      <string>Physics Pipeline</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_3">
+      <item>
+       <widget class="QPushButton" name="btn_spring_magic">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>50</height>
+         </size>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">background-color: #3d5a6b; color: white; font-weight: bold;</string>
+        </property>
+        <property name="text">
+         <string>🧬 OPEN SPRINGMAGIC SELECTOR</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QTreeWidget" name="tree_anim_list">
+     <column>
+      <property name="text">
+       <string>Статус</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Клип</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Эталон</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>В Сцене</string>
+      </property>
+     </column>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="btn_sync_list">
+     <property name="text">
+      <string>🔄 СИНХРОНИЗИРОВАТЬ СПИСОК</string>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
