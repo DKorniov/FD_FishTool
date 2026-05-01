@@ -209,3 +209,51 @@ class AnimationHandler:
         except Exception as e:
             print(f"FD_FishTool Error: {e}")
             traceback.print_exc()
+    
+    @staticmethod
+    def clear_animations():
+        """Полная очистка атрибутов ноды AnimAssistant."""
+        node = "AnimAssistant"
+        if not cmds.objExists(node): return
+        
+        cmds.setAttr(f"{node}.AnimationClipName", "", type="string")
+        cmds.setAttr(f"{node}.StartFrame", "", type="string")
+        cmds.setAttr(f"{node}.EndFrame", "", type="string")
+        
+        # Обновляем MEL окно если открыто
+        if mel.eval('exists "updateAnims"'):
+            mel.eval("updateAnims();")
+        
+        print("FD_FishTool: Список анимаций в сцене полностью очищен.")
+
+    @staticmethod
+    def load_missing_clips(missing_data_list):
+        """Дозагрузка только отсутствующих клипов."""
+        node = "AnimAssistant"
+        if not cmds.objExists(node): return
+        
+        # Получаем текущие данные
+        cur_names = (cmds.getAttr(f"{node}.AnimationClipName") or "").split()
+        cur_starts = (cmds.getAttr(f"{node}.StartFrame") or "").split()
+        cur_ends = (cmds.getAttr(f"{node}.EndFrame") or "").split()
+        
+        start_idx = len(cur_names) + 1
+        
+        for i, d in enumerate(missing_data_list):
+            idx = str(start_idx + i).zfill(2)
+            # d["ref_time"] уже содержит формат "10-20"
+            full_name = f"{idx}|{d['name']}_{d['ref_time']}"
+            s, e = d["ref_time"].split('-')
+            
+            cur_names.append(full_name)
+            cur_starts.append(s)
+            cur_ends.append(e)
+            
+        cmds.setAttr(f"{node}.AnimationClipName", " ".join(cur_names), type="string")
+        cmds.setAttr(f"{node}.StartFrame", " ".join(cur_starts), type="string")
+        cmds.setAttr(f"{node}.EndFrame", " ".join(cur_ends), type="string")
+        
+        if mel.eval('exists "updateAnims"'):
+            mel.eval("updateAnims();")
+            
+        print(f"FD_FishTool: Добавлено {len(missing_data_list)} недостающих анимаций.")

@@ -7,10 +7,34 @@
     <x>0</x>
     <y>0</y>
     <width>400</width>
-    <height>600</height>
+    <height>764</height>
    </rect>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QTreeWidget" name="tree_anim_list">
+     <column>
+      <property name="text">
+       <string>Статус</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Клип</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>Эталон</string>
+      </property>
+     </column>
+     <column>
+      <property name="text">
+       <string>В Сцене</string>
+      </property>
+     </column>
+    </widget>
+   </item>
    <item>
     <widget class="QGroupBox" name="anim_assist_group">
      <property name="title">
@@ -33,6 +57,27 @@
         </property>
         <property name="text">
          <string>📂 ЗАГРУЗИТЬ СПИСОК АНИМАЦИИ</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btn_sync_list">
+        <property name="text">
+         <string>🔄 СИНХРОНИЗИРОВАТЬ СПИСОК</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btn_load_missing">
+        <property name="text">
+         <string>➕ ЗАГРУЗИТЬ НЕДОСТАЮЩИЕ</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btn_clear_list">
+        <property name="text">
+         <string>🗑 ОЧИСТИТЬ СПИСОК</string>
         </property>
        </widget>
       </item>
@@ -85,37 +130,6 @@
        </widget>
       </item>
      </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QTreeWidget" name="tree_anim_list">
-     <column>
-      <property name="text">
-       <string>Статус</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Клип</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>Эталон</string>
-      </property>
-     </column>
-     <column>
-      <property name="text">
-       <string>В Сцене</string>
-      </property>
-     </column>
-    </widget>
-   </item>
-   <item>
-    <widget class="QPushButton" name="btn_sync_list">
-     <property name="text">
-      <string>🔄 СИНХРОНИЗИРОВАТЬ СПИСОК</string>
-     </property>
     </widget>
    </item>
   </layout>

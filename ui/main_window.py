@@ -4,6 +4,7 @@ import sys
 import importlib
 from PySide2 import QtWidgets, QtCore, QtGui, QtUiTools
 import maya.cmds as cmds
+import json
 
 
 # Импорты ядра
@@ -149,6 +150,13 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         # Синхронизация
         tab.btn_sync_list.clicked.connect(self.refresh_anim_list)
 
+        # Кнопки управления списком
+        self.btn_load_missing = tab.btn_load_missing
+        self.btn_clear_list = tab.btn_clear_list
+        
+        self.btn_load_missing.clicked.connect(self.on_load_missing_clicked)
+        self.btn_clear_list.clicked.connect(self.on_clear_list_clicked)
+
         return tab
 
     def ui_export_tab(self):
@@ -229,20 +237,103 @@ class FD_MainWindow(QtWidgets.QMainWindow):
             cmds.warning(f"Ошибка при открытии экспортера: {e}")
 
     def refresh_anim_list(self):
+        """Загрузка списка: статусы из .txt, структура из .json."""
         self.anim_tree.clear()
         ref_path = self.cfg.load_json("paths.json").get("animation_data")
         if not ref_path: return
+        
+        # Получаем "плоские" данные и статусы через txt
         manager = AnimSyncManager(ref_path)
         report = manager.compare()
+        
+        # Словарь для быстрого поиска: каноничное имя -> данные
+        report_map = {}
         for d in report:
-            item = QtWidgets.QTreeWidgetItem(self.anim_tree)
-            item.setText(1, d["name"]); item.setText(2, d["ref_time"]); item.setText(3, d["scene_time"])
-            if d["status"] == "OK":
-                item.setText(0, "✅ OK"); item.setForeground(0, QtGui.QColor(120, 255, 120))
-            elif d["status"] == "MISSING":
-                item.setText(0, "❌ MISS"); item.setForeground(0, QtGui.QColor(255, 120, 120))
-            else:
-                item.setText(0, "➕ EXTRA"); item.setForeground(0, QtGui.QColor(120, 200, 255))
+            canon = manager.get_canonical_name(d["name"])
+            report_map[canon] = d
+            
+        # Путь к JSON-файлу (ищем в той же папке, что и animation.txt)
+        data_dir = os.path.dirname(ref_path)
+        etalon_json_path = os.path.join(data_dir, "anim_etalon.json")
+        
+
+
+        processed_canons = set()
+        
+        # Сохраняем список недостающих для кнопки
+        self.missing_animations = [d for d in report if d["status"] == "MISSING"]
+        
+        # Логика доступности кнопок
+        has_missing = len(self.missing_animations) > 0
+        has_any_in_scene = any(d["status"] in ["OK", "EXTRA"] for d in report)
+        
+        self.btn_load_missing.setEnabled(has_missing)
+        self.btn_clear_list.setEnabled(has_any_in_scene)
+
+
+        try:
+            with open(etalon_json_path, 'r', encoding='utf-8') as f:
+                etalon_data = json.load(f)
+                
+            for group_dict in etalon_data.get("clips", []):
+                for group_name, clips in group_dict.items():
+                    # Создаем папку (группу)
+                    g_item = QtWidgets.QTreeWidgetItem(self.anim_tree)
+                    g_item.setText(0, group_name.upper())
+                    
+                    # Стилизация заголовка группы
+                    font = g_item.font(0)
+                    font.setBold(True)
+                    for col in range(4):
+                        g_item.setFont(col, font)
+                        g_item.setBackground(col, QtGui.QColor(70, 70, 70))
+                    g_item.setExpanded(True)
+                    
+                    # Добавляем клипы в группу
+                    for clip in clips:
+                        canon = manager.get_canonical_name(clip.get("name", ""))
+                        if canon in report_map:
+                            d = report_map[canon]
+                            self._add_anim_item(g_item, d)
+                            processed_canons.add(canon)
+        except Exception as e:
+            cmds.warning(f"FD_FishTool: Не удалось прочитать anim_etalon.json, вывод плоским списком. Ошибка: {e}")
+            # Fallback к плоскому списку, если JSON не найден или сломан
+            for d in report:
+                self._add_anim_item(self.anim_tree, d)
+            return
+
+        # Добавляем все, что есть в сцене/txt, но не попало в JSON (Extra или новые)
+        extra_canons = set(report_map.keys()) - processed_canons
+        if extra_canons:
+            e_group = QtWidgets.QTreeWidgetItem(self.anim_tree)
+            e_group.setText(0, "ВНЕ КАТЕГОРИЙ / EXTRA")
+            font = e_group.font(0)
+            font.setBold(True)
+            for col in range(4):
+                e_group.setFont(col, font)
+                e_group.setBackground(col, QtGui.QColor(80, 40, 40))
+            e_group.setExpanded(True)
+            
+            for canon in sorted(list(extra_canons)):
+                self._add_anim_item(e_group, report_map[canon])
+
+    def _add_anim_item(self, parent, data):
+        """Вспомогательный метод добавления клипа в UI"""
+        item = QtWidgets.QTreeWidgetItem(parent)
+        item.setText(1, data["name"])
+        item.setText(2, data["ref_time"])
+        item.setText(3, data["scene_time"])
+        
+        if data["status"] == "OK":
+            item.setText(0, "✅ OK")
+            item.setForeground(0, QtGui.QColor(120, 255, 120))
+        elif data["status"] == "MISSING":
+            item.setText(0, "❌ MISS")
+            item.setForeground(0, QtGui.QColor(255, 120, 120))
+        else:
+            item.setText(0, "➕ EXTRA")
+            item.setForeground(0, QtGui.QColor(120, 200, 255))
 
     def on_clip_click(self, item, col):
         time_text = item.text(3) if item.text(3) != "MISSING" else item.text(2)
@@ -257,3 +348,20 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         from FD_FishTool.ui.settings_window import SettingsWindow
         sw = SettingsWindow(self.cfg, parent=self)
         sw.exec_()
+
+    def on_clear_list_clicked(self):
+        res = cmds.confirmDialog(
+            title='FD_FishTool',
+            message='Вы уверены, что хотите полностью очистить список анимаций в сцене?',
+            button=['Да', 'Нет'], defaultButton='Да', cancelButton='Нет', dismissString='Нет'
+        )
+        if res == 'Да':
+            from FD_FishTool.core.anim_handler import AnimationHandler
+            AnimationHandler.clear_animations()
+            self.refresh_anim_list()
+
+    def on_load_missing_clicked(self):
+        if hasattr(self, 'missing_animations') and self.missing_animations:
+            from FD_FishTool.core.anim_handler import AnimationHandler
+            AnimationHandler.load_missing_clips(self.missing_animations)
+            self.refresh_anim_list()
