@@ -16,8 +16,32 @@
      <property name="title">
       <string>Техническая проверка</string>
      </property>
-     <layout class="QVBoxLayout" name="verticalLayout_validation">
-      <item>
+     <layout class="QGridLayout" name="gridLayout">
+      <item row="0" column="1">
+       <widget class="QPushButton" name="btn_info_validate">
+        <property name="text">
+         <string>?</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_validation">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+          <horstretch>1</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Проверка сцены перед экспортом 
+по заданным параметрам </string>
+        </property>
+        <property name="textFormat">
+         <enum>Qt::AutoText</enum>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0" colspan="2">
        <widget class="QPushButton" name="btn_validate">
         <property name="minimumSize">
          <size>
@@ -30,7 +54,7 @@
         </property>
        </widget>
       </item>
-      <item>
+      <item row="3" column="0" colspan="2">
        <widget class="QTreeWidget" name="report_tree">
         <column>
          <property name="text">
@@ -44,6 +68,13 @@
         </column>
        </widget>
       </item>
+      <item row="1" column="0" colspan="2">
+       <widget class="QLabel" name="label_2">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
@@ -52,8 +83,37 @@
      <property name="title">
       <string>Подготовка и Экспорт</string>
      </property>
-     <layout class="QVBoxLayout" name="verticalLayout_prep">
-      <item>
+     <layout class="QGridLayout" name="gridLayout_2">
+      <item row="0" column="0">
+       <widget class="QLabel" name="label_preparation">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+          <horstretch>1</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Переключение между режимами: 
+- режим рига 
+- режим экспорта </string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QPushButton" name="btn_info_preparation">
+        <property name="text">
+         <string>?</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="2">
+       <widget class="QLabel" name="label_4">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0" colspan="2">
        <widget class="QPushButton" name="btn_toggle">
         <property name="minimumSize">
          <size>
@@ -69,7 +129,7 @@
         </property>
        </widget>
       </item>
-      <item>
+      <item row="5" column="0" colspan="2">
        <widget class="QPushButton" name="btn_legacy">
         <property name="minimumSize">
          <size>
@@ -82,6 +142,20 @@
         </property>
         <property name="text">
          <string>🚀 PLAYRIX EXPORTER</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0" colspan="2">
+       <widget class="QLabel" name="label_5">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0" colspan="2">
+       <widget class="Line" name="line">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
         </property>
        </widget>
       </item>

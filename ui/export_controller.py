@@ -17,29 +17,42 @@ class ExportController(QtWidgets.QWidget):
         self.init_ui()
 
     def init_ui(self):
-        # 1. Динамическая загрузка интерфейса из .ui
+        # ... (код загрузки .ui файла остается прежним)
+        
         loader = QtUiTools.QUiLoader()
         ui_path = os.path.join(os.path.dirname(__file__), "export_tab.ui")
         file = QtCore.QFile(ui_path)
         
         if not file.open(QtCore.QFile.ReadOnly):
-            cmds.warning(f"FD_FishTool: Не удалось найти или открыть файл UI: {ui_path}")
+            cmds.warning(f"FD_FishTool: Не удалось найти файл UI: {ui_path}")
             return
             
         self.ui = loader.load(file, self)
         file.close()
 
-        # Размещаем загруженный UI в текущем виджете
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.ui)
 
-        # 2. Инициализация TreeWidget для отчетов
-        self.report_tree = getattr(self.ui, 'report_tree', None)
-        if self.report_tree:
-            self.report_tree.setHeaderLabels(["Результат", "Описание"])
+        # --- ПОДКЛЮЧЕНИЕ КНОПОК СПРАВКИ ---
+        try:
+            from FD_FishTool.ui.help_manager import HelpManager
+            
+            # Подключаем кнопку инфо для валидации
+            if hasattr(self.ui, 'btn_info_validate'):
+                self.ui.btn_info_validate.clicked.connect(
+                    lambda: HelpManager.show_export_help(self)
+                )
+            
+            # Подключаем кнопку инфо для подготовки
+            if hasattr(self.ui, 'btn_info_preparation'):
+                self.ui.btn_info_preparation.clicked.connect(
+                    lambda: HelpManager.show_export_preparation_help(self)
+                )
+        except ImportError:
+            cmds.warning("FD_FishTool: HelpManager не найден, справка экспорта недоступна.")
 
-        # 3. Подключение базовых кнопок (если они есть в статичном UI)
+        # --- ПОДКЛЮЧЕНИЕ ОСТАЛЬНЫХ КНОПОК ---
         if hasattr(self.ui, 'btn_validate'):
             self.ui.btn_validate.clicked.connect(self.run_validation)
             
@@ -49,7 +62,10 @@ class ExportController(QtWidgets.QWidget):
         if hasattr(self.ui, 'btn_legacy'):
             self.ui.btn_legacy.clicked.connect(self.launch_legacy_exporter)
 
-        # 4. Построение динамических блоков из export_config.json
+        self.report_tree = getattr(self.ui, 'report_tree', None)
+        if self.report_tree:
+            self.report_tree.setHeaderLabels(["Результат", "Описание"])
+
         self.build_dynamic_ui()
 
     def build_dynamic_ui(self):
@@ -88,21 +104,87 @@ class ExportController(QtWidgets.QWidget):
     # --- ЛОГИКА ЭКСПОРТА И ВАЛИДАЦИИ ---
 
     def run_validation(self):
+        """Запуск валидации с интеллектуальной подсветкой и авто-раскрытием групп."""
         if not self.report_tree:
             return
             
+        # 1. Получаем данные из ядра
         errors, success = self.validator.validate_all()
         self.report_tree.clear()
         
+        # 2. Загружаем конфигурацию групп
+        config_path = os.path.join(self.cfg.data_path if self.cfg else "", "validation_config.json")
+        groups_data = []
+        default_title = "Прочие проверки"
+        
+        if os.path.exists(config_path):
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    v_config = json.load(f)
+                    groups_data = v_config.get("groups", [])
+                    default_title = v_config.get("default_group", default_title)
+            except Exception as e:
+                cmds.warning(f"FD_FishTool: Ошибка чтения validation_config.json: {e}")
+
+        group_items = {}
+        group_has_errors = {} # Словарь для отслеживания ошибок в каждой группе
+
+        def get_or_create_group(title):
+            """Создает заголовок группы и инициализирует статус ошибки."""
+            if title not in group_items:
+                g_item = QtWidgets.QTreeWidgetItem(self.report_tree, [title, ""])
+                group_items[title] = g_item
+                group_has_errors[title] = False # По умолчанию считаем, что ошибок нет
+            return group_items[title]
+
+        def add_result_to_tree(status_text, message, is_error):
+            """Добавляет результат и помечает группу как проблемную, если есть ошибка."""
+            target_group_title = default_title
+            for g in groups_data:
+                if any(kw in message for kw in g.get("keywords", [])):
+                    target_group_title = g.get("title", default_title)
+                    break
+            
+            parent = get_or_create_group(target_group_title)
+            
+            # Если хотя бы один элемент в группе — ошибка, помечаем всю группу
+            if is_error:
+                group_has_errors[target_group_title] = True
+            
+            item = QtWidgets.QTreeWidgetItem(parent, [status_text, message])
+            color = QtGui.QColor(255, 120, 120) if is_error else QtGui.QColor(120, 255, 120)
+            item.setForeground(0, color)
+
+        # 3. Заполняем данные
+        # Важно: сначала обрабатываем успехи, потом ошибки (или наоборот), 
+        # флаг group_has_errors корректно обновится в любом случае.
         for msg in success:
-            item = QtWidgets.QTreeWidgetItem(["✅ PASS", msg])
-            item.setForeground(0, QtGui.QColor(120, 255, 120))
-            self.report_tree.addTopLevelItem(item)
+            add_result_to_tree("✅ PASS", msg, is_error=False)
             
         for err in errors:
-            item = QtWidgets.QTreeWidgetItem(["❌ ERROR", err])
-            item.setForeground(0, QtGui.QColor(255, 120, 120))
-            self.report_tree.addTopLevelItem(item)
+            add_result_to_tree("❌ ERROR", err, is_error=True)
+
+        # 4. ФИНАЛЬНАЯ СТИЛИЗАЦИЯ ГРУПП
+        for title, g_item in group_items.items():
+            has_error = group_has_errors[title]
+            
+            # Настройка цвета: темно-красный для ошибок, темно-зеленый для успеха
+            bg_color = QtGui.QColor(80, 40, 40) if has_error else QtGui.QColor(40, 70, 40)
+            
+            font = g_item.font(0)
+            font.setBold(True)
+            
+            for col in range(2):
+                g_item.setFont(col, font)
+                g_item.setBackground(col, bg_color)
+                g_item.setForeground(col, QtGui.QColor(240, 240, 240)) # Белый текст для читаемости
+            
+            # Логика раскрытия: раскрываем только если есть ошибки
+            g_item.setExpanded(has_error)
+
+        # Подгоняем колонки
+        for col in range(2):
+            self.report_tree.resizeColumnToContents(col)
 
     def run_export_toggle(self):
         self.bone_preparer.execute()

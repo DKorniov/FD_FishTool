@@ -1,0 +1,20 @@
+{
+    "groups": [
+        {
+            "id": "naming",
+            "title": "Нейминг и Иерархия",
+            "keywords": ["NAMING", "Naming"]
+        },
+        {
+            "id": "materials",
+            "title": "Шейдинг и Материалы",
+            "keywords": ["MAT", "Materials"]
+        },
+        {
+            "id": "geometry",
+            "title": "Геометрия и Скиннинг",
+            "keywords": ["LIMIT", "INFLUENCE", "Skin Count", "Influence Check"]
+        }
+    ],
+    "default_group": "Прочие проверки"
+}

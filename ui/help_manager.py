@@ -63,3 +63,31 @@ class HelpManager:
         </ul>
         """
         HelpDialog(title, text, parent).exec_()
+    
+    @staticmethod
+    def show_export_help(parent=None):
+        """Окно справки для раздела экспорта и валидации."""
+        msg = QtWidgets.QMessageBox(parent)
+        msg.setWindowTitle("Справка: Валидация и Экспорт")
+        msg.setText("<b>Техническая проверка сцены:</b><br><br>"
+                    "1. <b>Naming:</b> Проверяет наличие всех костей из MetaLinks.xml.<br>"
+                    "2. <b>Materials:</b> Ищет стандартные материалы проекта (mat_opaque и др.).<br>"
+                    "3. <b>Limits:</b> Проверяет лимит костей в скине (&lt; 80) и влияние (&lt; 4).<br><br>"
+                    "<b>Подготовка:</b><br>"
+                    "Кнопка <i>Toggle</i> переименовывает и перепаренчивает кости для игрового движка. "
+                    "Повторное нажатие возвращает риг в рабочее состояние.")
+        msg.setIcon(QtWidgets.QMessageBox.Information)
+        msg.exec_()
+    
+    @staticmethod
+    def show_export_preparation_help(parent=None):
+        """Окно справки для раздела подготовки и экспорта."""
+        msg = QtWidgets.QMessageBox(parent)
+        msg.setWindowTitle("Справка: Подготовка и Экспорт")
+        msg.setText("<b>Техническая проверка сцены:</b><br><br>"
+                    "1. <b> Переключает между режимами экпорта и рига.<br>"
+                    "2. <b> Переносит кости и контролы в соответсвующие папки.<br>"
+                    "3. <b> Переименовывает кости для игрового движка.<br><br>"
+                    )
+        msg.setIcon(QtWidgets.QMessageBox.Information)
+        msg.exec_()
