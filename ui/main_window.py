@@ -13,7 +13,7 @@ from FD_FishTool.core.validator import FishValidator
 from FD_FishTool.core.anim_handler import AnimSyncManager
 from FD_FishTool.core.anim_manager import AnimManager
 from FD_FishTool.core.physics_manager import PhysicsManager
-from FD_FishTool.ui.rig_face_ui import FaceRigTab
+from FD_FishTool.ui.rig_face_ui import FaceRigController
 
 
 
@@ -39,7 +39,8 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         self.init_ui()
         
         self.refresh_anim_list()
-        self.face_tab = FaceRigTab()
+        
+        self.face_tab = FaceRigController()
         if hasattr(self.ui, 'tabs'):
             self.ui.tabs.addTab(self.face_tab, "Face Rig")
     

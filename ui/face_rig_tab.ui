@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>FaceRigTab</class>
+ <widget class="QWidget" name="FaceRigTab">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>669</width>
+    <height>622</height>
+   </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
+  <property name="windowTitle">
+   <string>Face Rig</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_main">
+   <item>
+    <widget class="QPushButton" name="btn_init_library">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>45</height>
+      </size>
+     </property>
+     <property name="styleSheet">
+      <string>background-color: #2e86c1; color: white; font-weight: bold; border-radius: 5px;</string>
+     </property>
+     <property name="text">
+      <string>Build &amp; Connect Face GUI</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="group_geometry">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="title">
+      <string>Stage 4: Geometry Generation</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_geom">
+      <item>
+       <widget class="QPushButton" name="btn_eyes">
+        <property name="text">
+         <string>Build Eyes</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_mouth">
+        <item>
+         <widget class="QLabel" name="label_lips">
+          <property name="text">
+           <string>Lip Pairs:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="spin_lip_pairs">
+          <property name="minimum">
+           <number>1</number>
+          </property>
+          <property name="maximum">
+           <number>3</number>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btn_mouth">
+          <property name="text">
+           <string>Build Mouth</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout_brows">
+        <item>
+         <widget class="QLabel" name="label_brows">
+          <property name="text">
+           <string>Brows:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="spin_brows">
+          <property name="minimum">
+           <number>1</number>
+          </property>
+          <property name="maximum">
+           <number>3</number>
+          </property>
+          <property name="value">
+           <number>2</number>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btn_brows">
+          <property name="text">
+           <string>Build Brows</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btn_jaw">
+        <property name="text">
+         <string>Create Jaw &amp; Teeth</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="group_selector">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="styleSheet">
+      <string>
+       /* Глобальный стиль для всех QPushButton внутри этой группы */
+       QPushButton {
+        background-color: #4f4f4f; /* Базовый цвет фона (темно-серый) */
+        color: white; /* Цвет текста */
+        border: 2px solid #3d3d3d; /* Небольшая граница */
+        border-radius: 10px; /* Сильное скругление углов (как у GUI сверху) */
+        font-weight: bold;
+        padding: 5px;
+       }
+
+       /* Изменяем цвет границы для имитации подсветки */
+       QPushButton:hover {
+        background-color: #5f5f5f; /* Чуть светлее при наведении */
+        border: 2px solid #2e86c1; /* Синяя граница (в цвет главной кнопки) */
+       }
+
+       /* Эффект нажатия */
+       QPushButton:pressed {
+        background-color: #3d3d3d; /* Самый темный при нажатии */
+        padding-left: 7px; padding-top: 7px; /* Сдвиг текста */
+       }
+      </string>
+     </property>
+     <property name="title">
+      <string>Selector &amp; SMART KEY</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout">
+      <item row="0" column="0">
+       <widget class="QWidget" name="widget_grid_container" native="true">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <layout class="QGridLayout" name="layout_selector_grid"/>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <layout class="QVBoxLayout" name="verticalLayout_right_panel">
+        <item>
+         <widget class="QLabel" name="label_driven">
+          <property name="text">
+           <string>&lt;b&gt;Driven Bones (Auto-load):&lt;/b&gt;</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QListWidget" name="list_driven_bones">
+          <property name="selectionMode">
+           <enum>QAbstractItemView::ExtendedSelection</enum>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btn_key">
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>60</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string>background-color: #d35400; color: white; font-weight: bold; font-size: 16pt; border-radius: 5px;</string>
+          </property>
+          <property name="text">
+           <string>KEY</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="group_test_tools">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="title">
+           <string>Test Tools</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_test">
+           <item>
+            <widget class="QPushButton" name="btn_gen_anim">
+             <property name="text">
+              <string>Gen Test Anim</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="btn_clean_anim">
+             <property name="text">
+              <string>Clean &amp; Zero All</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
