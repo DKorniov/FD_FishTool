@@ -198,79 +198,29 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         return tab
 
     def ui_export_tab(self):
-        """Вкладка экспорта: Полный возврат к v2.0."""
-        tab = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(tab)
-        
-        # Секция валидации
-        val_group = QtWidgets.QGroupBox("Техническая проверка")
-        val_lay = QtWidgets.QVBoxLayout(val_group)
-        btn_validate = QtWidgets.QPushButton("🔍 ПРОВЕРИТЬ СЦЕНУ")
-        btn_validate.setFixedHeight(40)
-        btn_validate.clicked.connect(self.run_validation)
-        val_lay.addWidget(btn_validate)
-        
-        self.report_tree = QtWidgets.QTreeWidget()
-        self.report_tree.setHeaderLabels(["Результат", "Описание"])
-        val_lay.addWidget(self.report_tree)
-        layout.addWidget(val_group)
-
-        # Секция подготовки и экспорта
-        prep_group = QtWidgets.QGroupBox("Подготовка")
-        prep_lay = QtWidgets.QVBoxLayout(prep_group)
-        btn_toggle = QtWidgets.QPushButton("🔄 RIG/EXPORT TOGGLE")
-        btn_toggle.setMinimumHeight(50)
-        btn_toggle.setStyleSheet("background-color: #4e7a4e; color: white; font-weight: bold;")
-        btn_toggle.clicked.connect(self.run_export_toggle)
-        prep_lay.addWidget(btn_toggle)
-
-        btn_legacy = QtWidgets.QPushButton("🚀 PLAYRIX EXPORTER")
-        btn_legacy.setMinimumHeight(80)
-        btn_legacy.setStyleSheet("background-color: #d4a017; color: black; font-weight: bold;")
-        btn_legacy.clicked.connect(self.launch_legacy_exporter)
-        prep_lay.addWidget(btn_legacy)
-        
-        layout.addWidget(prep_group)
-        return tab
+        """Вкладка экспорта: Инициализация MVC контроллера, загрузка из export_tab.ui."""
+        try:
+            # Абсолютный импорт для избежания конфликтов
+            from FD_FishTool.ui.export_controller import ExportController
+            
+            # Инициализируем контроллер и передаем ему необходимые зависимости из ядра
+            self.export_controller = ExportController(
+                main_window=self,
+                validator=self.validator,
+                bone_preparer=self.bone_preparer,
+                config=self.cfg,
+                parent=self
+            )
+            return self.export_controller
+            
+        except Exception as e:
+            cmds.warning(f"FD_FishTool: Ошибка при загрузке контроллера вкладки Export: {e}")
+            # Возвращаем пустой виджет в качестве предохранителя
+            return QtWidgets.QWidget()
 
     
 
-    def run_validation(self):
-        errors, success = self.validator.validate_all()
-        self.report_tree.clear()
-        for msg in success:
-            item = QtWidgets.QTreeWidgetItem(["✅ PASS", msg])
-            item.setForeground(0, QtGui.QColor(120, 255, 120))
-            self.report_tree.addTopLevelItem(item)
-        for err in errors:
-            item = QtWidgets.QTreeWidgetItem(["❌ ERROR", err])
-            item.setForeground(0, QtGui.QColor(255, 120, 120))
-            self.report_tree.addTopLevelItem(item)
-
-    def run_export_toggle(self):
-        self.bone_preparer.execute()
-
-    def launch_legacy_exporter(self):
-        """Исправленный метод запуска Playrix Exporter."""
-        path = self.cfg.load_json("paths.json").get("legacy_exporter_path", "")
-        if path and path not in sys.path:
-            sys.path.append(path)
-        
-        try:
-            import playrix.export.main_dialog as lex
-            importlib.reload(lex)
-            
-            # Проверка способа запуска: функция show() или класс MainDialog()
-            if hasattr(lex, 'show'):
-                lex.show()
-            elif hasattr(lex, 'MainDialog'):
-                # Сохраняем ссылку на экземпляр, чтобы окно не закрылось сразу
-                self.exporter_instance = lex.MainDialog()
-                self.exporter_instance.show()
-            else:
-                cmds.warning("FD_FishTool: Не найден метод запуска в playrix.export.main_dialog")
-        except Exception as e:
-            cmds.warning(f"Ошибка при открытии экспортера: {e}")
+    
 
     def refresh_anim_list(self):
         """Загрузка списка: статусы из .txt, структура из .json."""

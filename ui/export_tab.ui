@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ExportTabWidget</class>
+ <widget class="QWidget" name="ExportTabWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>500</width>
+    <height>800</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="main_layout">
+   <item>
+    <widget class="QGroupBox" name="group_validation">
+     <property name="title">
+      <string>Техническая проверка</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_validation">
+      <item>
+       <widget class="QPushButton" name="btn_validate">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>40</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>🔍 ПРОВЕРИТЬ СЦЕНУ</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QTreeWidget" name="report_tree">
+        <column>
+         <property name="text">
+          <string>Результат</string>
+         </property>
+        </column>
+        <column>
+         <property name="text">
+          <string>Описание</string>
+         </property>
+        </column>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="group_preparation">
+     <property name="title">
+      <string>Подготовка и Экспорт</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_prep">
+      <item>
+       <widget class="QPushButton" name="btn_toggle">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>50</height>
+         </size>
+        </property>
+        <property name="styleSheet">
+         <string>background-color: #4e7a4e; color: white; font-weight: bold;</string>
+        </property>
+        <property name="text">
+         <string>🔄 RIG/EXPORT TOGGLE</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btn_legacy">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>80</height>
+         </size>
+        </property>
+        <property name="styleSheet">
+         <string>background-color: #d4a017; color: black; font-weight: bold;</string>
+        </property>
+        <property name="text">
+         <string>🚀 PLAYRIX EXPORTER</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <layout class="QVBoxLayout" name="dynamic_layout">
+     <property name="spacing">
+      <number>6</number>
+     </property>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
