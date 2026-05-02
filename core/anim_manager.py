@@ -132,3 +132,27 @@ class AnimManager:
         if "_R" in ctrl: return ctrl.replace("_R", "_L")
         if "_L" in ctrl: return ctrl.replace("_L", "_R")
         return None
+    
+    def select_studio_set(self, set_type="body"):
+        """Выделяет в сцене контролы, принадлежащие указанному сету (body или face)."""
+        set_folder = "AS_body_set.set" if set_type == "body" else "AS_face_set.set"
+        set_path = os.path.join(self.lib_path, set_folder, "set.json")
+
+        if not os.path.exists(set_path):
+            cmds.warning(f"FD_FishTool: Файл сета не найден: {set_path}")
+            return
+
+        try:
+            with open(set_path, 'r') as f:
+                set_data = json.load(f)
+            
+            objects_in_set = set_data.get("objects", {}).keys()
+            existing_objs = [obj for obj in objects_in_set if cmds.objExists(obj)]
+            
+            if existing_objs:
+                cmds.select(existing_objs)
+                print(f"FD_FishTool: Выделено {len(existing_objs)} контролов из сета {set_type}.")
+            else:
+                cmds.warning(f"FD_FishTool: В сцене не найдено объектов из сета {set_type}!")
+        except Exception as e:
+            cmds.error(f"FD_FishTool: Ошибка при чтении сета: {e}")

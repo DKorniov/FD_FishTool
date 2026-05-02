@@ -1,173 +1,199 @@
 # -*- coding: utf-8 -*-
-from PySide2 import QtWidgets, QtCore, QtGui
+from PySide2 import QtWidgets, QtCore
 import maya.cmds as cmds
 
-class SpringSelectorWindow(QtWidgets.QDialog):
-    def __init__(self, physics_manager, parent=None):
-        """
-        Окно селектора для настройки физики SpringMagic.
-        :param physics_manager: Экземпляр core.physics_manager.PhysicsManager
-        """
-        super(SpringSelectorWindow, self).__init__(parent)
+class SpringSelectorController(QtCore.QObject):
+    def __init__(self, ui_tab, physics_manager, parent=None):
+        super(SpringSelectorController, self).__init__(parent)
+        self.ui = ui_tab
         self.physics_mgr = physics_manager
-        self.setWindowTitle("SpringMagic Selector | FD_FishTool")
-        self.setMinimumWidth(500)
         
-        self.mapping = {}      # Хранит список контролов для каждой группы
-        self.ui_inputs = {}    # Хранит объекты QLineEdit для обновления текста
+        # Список словарей с виджетами для каждой строки
+        self.rows = [] 
         
-        self.init_ui()
+        # Коннектим базовые кнопки
+        self.ui.btn_add_chain.clicked.connect(self.add_chain_row)
+        self.ui.btn_sm_execute.clicked.connect(self.execute_pipeline)
+        self.ui.btn_sm_clean_anim.clicked.connect(self.clean_selected_chains_animation)
+        
+        # Первая строка создается автоматически
+        self.add_chain_row()
 
-    def init_ui(self):
-        layout = QtWidgets.QVBoxLayout(self)
+    def add_chain_row(self):
+        """Создает новую строку управления и добавляет её в интерфейс."""
+        row_data = {}
         
-        # 1. Блок параметров SpringMagic
-        cfg_group = QtWidgets.QGroupBox("Параметры физики")
-        cfg_lay = QtWidgets.QGridLayout(cfg_group)
+        lbl = QtWidgets.QLabel(f"Цепочка:")
         
-        self.val_spring = QtWidgets.QDoubleSpinBox()
-        self.val_spring.setRange(0.0, 1.0)
-        self.val_spring.setSingleStep(0.1)
-        self.val_spring.setValue(0.5)
+        combo = QtWidgets.QComboBox()
+        combo.addItems(["Fin (Плавники)", "Body (Тело/Хвост)"])
         
-        self.val_twist = QtWidgets.QDoubleSpinBox()
-        self.val_twist.setRange(0.0, 1.0)
-        self.val_twist.setSingleStep(0.1)
-        self.val_twist.setValue(0.2)
+        le = QtWidgets.QLineEdit()
+        le.setReadOnly(True)
+        le.setPlaceholderText("Выберите контролы...")
         
-        self.chk_loop = QtWidgets.QCheckBox("Loop (Цикличная анимация)")
-        self.chk_loop.setChecked(True)
+        btn_sel = QtWidgets.QPushButton("Выбрать")
+        btn_sel.clicked.connect(lambda: self.assign_selection(row_data))
         
-        cfg_lay.addWidget(QtWidgets.QLabel("Spring (Ratio):"), 0, 0)
-        cfg_lay.addWidget(self.val_spring, 0, 1)
-        cfg_lay.addWidget(QtWidgets.QLabel("Twist (Ratio):"), 0, 2)
-        cfg_lay.addWidget(self.val_twist, 0, 3)
-        cfg_lay.addWidget(self.chk_loop, 1, 0, 1, 4)
-        layout.addWidget(cfg_group)
+        btn_del = QtWidgets.QPushButton("❌")
+        btn_del.setFixedWidth(30)
+        btn_del.setToolTip("Удалить эту цепочку")
+        btn_del.clicked.connect(lambda: self.remove_chain_row(row_data))
+        
+        row_idx = self.ui.gridLayout_sm_bones.rowCount()
+        self.ui.gridLayout_sm_bones.addWidget(lbl, row_idx, 0)
+        self.ui.gridLayout_sm_bones.addWidget(combo, row_idx, 1)
+        self.ui.gridLayout_sm_bones.addWidget(le, row_idx, 2)
+        self.ui.gridLayout_sm_bones.addWidget(btn_sel, row_idx, 3)
+        self.ui.gridLayout_sm_bones.addWidget(btn_del, row_idx, 4)
+        
+        row_data.update({
+            "widgets": [lbl, combo, le, btn_sel, btn_del],
+            "combo": combo,
+            "le": le,
+            "chains": [] # ВАЖНО: Теперь это список списков (может содержать и левую, и правую цепь)
+        })
+        self.rows.append(row_data)
 
-        # 2. Блок выбора контролов цепей (версия 5)
-        rows = [
-            ("SideFin", "Боковые плавники"),
-            ("BellyFin", "Нижние брюшные"),
-            ("SideFin2", "Боковые 2"),
-            ("DorsalFin", "Верхние спинные"),
-            ("HeadFin", "Нижние головные"),
-            ("Tail", "Хвост (ветки)"),
-            ("Extra", "Дополнительные")
-        ]
-        
-        form = QtWidgets.QFormLayout()
-        for key, label in rows:
-            line = QtWidgets.QLineEdit()
-            line.setReadOnly(True)
-            line.setPlaceholderText("Выделите корневой контрол...")
-            self.ui_inputs[key] = line
+    def remove_chain_row(self, row_data):
+        """Удаляет строку из интерфейса и из памяти."""
+        if len(self.rows) <= 1:
+            return 
             
-            btn = QtWidgets.QPushButton("Set")
-            btn.setFixedWidth(60)
-            # Передача ключа в метод назначения через лямбду
-            btn.clicked.connect(lambda checked=False, k=key: self.assign(k))
+        for widget in row_data["widgets"]:
+            self.ui.gridLayout_sm_bones.removeWidget(widget)
+            widget.deleteLater()
             
-            h_layout = QtWidgets.QHBoxLayout()
-            h_layout.addWidget(line)
-            h_layout.addWidget(btn)
-            form.addRow(QtWidgets.QLabel(f"<b>{label}:</b>"), h_layout)
-            
-        layout.addLayout(form)
+        if row_data in self.rows:
+            self.rows.remove(row_data)
 
-        # 3. Кнопка запуска полного цикла
-        btn_run = QtWidgets.QPushButton("🚀 ЗАПУСТИТЬ ПОЛНЫЙ ЦИКЛ ФИЗИКИ")
-        btn_run.setMinimumHeight(60)
-        btn_run.setStyleSheet("background-color: #d4a017; font-weight: bold; color: black; font-size: 13px;")
-        btn_run.clicked.connect(self.execute_pipeline)
-        layout.addWidget(btn_run)
-
-    def assign(self, key):
-        """
-        Назначает выделенные контролы в группу.
-        Если выделен 1 контрол - логика авто-цепи (поиск детей).
-        Если выделено >1 контролов - ручная цепь в порядке выделения.
-        """
-        # Используем orderedSelection, чтобы гарантированно получить порядок кликов пользователя
-        sel = cmds.ls(orderedSelection=True) or cmds.ls(selection=True)
+    def assign_selection(self, row_data):
+        """Назначает выделенные объекты строке и автоматически ищет симметрию."""
+        sel = cmds.ls(selection=True)
         if not sel:
+            QtWidgets.QMessageBox.warning(self.ui, "Ошибка", "Выберите контролы в сцене!")
             return
         
-        is_manual_chain = len(sel) > 1
+        # 1. Формируем основную цепь из выделенного
+        chain_main = sel
+        chain_sym = []
         
-        primary_chain = sel
-        sym_chain = []
-        
-        # Поиск симметрии
-        if is_manual_chain:
-            # Для ручной цепи проверяем симметрию каждого элемента в порядке выделения
-            for ctrl in primary_chain:
-                sym = self.physics_mgr.get_symmetric_control(ctrl)
-                if sym and cmds.objExists(sym):
-                    sym_chain.append(sym)
-                else:
-                    # Если хотя бы у одного звена нет пары, симметричная цепь инвалидируется
-                    sym_chain = []
-                    break
-        else:
-            # Стандартная логика для 1 корневого контрола
-            root_ctrl = primary_chain[0]
-            sym = self.physics_mgr.get_symmetric_control(root_ctrl)
-            if sym and cmds.objExists(sym):
-                sym_chain = [sym]
-
-        # Сохраняем цепи в mapping
-        chains = [primary_chain]
-        if sym_chain:
-            chains.append(sym_chain)
-            
-        self.mapping[key] = chains
-        
-        # Обновляем текст в UI
-        if is_manual_chain:
-            display_text = f"Chain: {primary_chain[0]}... ({len(primary_chain)} ctrls)"
-            if sym_chain:
-                display_text += " + Sym"
-        else:
-            display_text = primary_chain[0]
-            if sym_chain:
-                display_text += f" + {sym_chain[0]} (Auto-Sym)"
+        # 2. Проверяем, есть ли симметричные контролы для каждого выделенного
+        for ctrl in chain_main:
+            sym_ctrl = self.physics_mgr.get_symmetric_control(ctrl)
+            if sym_ctrl and cmds.objExists(sym_ctrl):
+                chain_sym.append(sym_ctrl)
                 
-        self.ui_inputs[key].setText(display_text)
-        self.ui_inputs[key].setStyleSheet("background-color: #2b4433; color: white;")
+        # 3. Сохраняем в строку как список цепочек
+        chains_list = [chain_main]
+        
+        # Если симметричная цепь собралась полностью, добавляем и её как отдельную цепь
+        if chain_sym and len(chain_sym) == len(chain_main):
+            chains_list.append(chain_sym)
+            
+        row_data["chains"] = chains_list
+        
+        # 4. Обновляем текст в UI
+        display_names = [n.split('|')[-1] for n in chain_main]
+        text = ", ".join(display_names)
+        
+        if len(chains_list) > 1:
+            text += " (+ Симметрия)"
+            
+        row_data["le"].setText(text)
 
     def execute_pipeline(self):
-        """
-        Выполняет итеративный просчет всех анимаций для каждой группы.
-        """
-        if not self.mapping:
-            QtWidgets.QMessageBox.warning(self, "Ошибка", "Назначьте хотя бы один контрол!")
+        """Просчет физики для всех заполненных цепочек."""
+        valid_rows = [r for r in self.rows if r.get("chains")]
+        
+        if not valid_rows:
+            QtWidgets.QMessageBox.warning(self.ui, "Ошибка", "Назначьте контролы хотя бы для одной цепочки!")
             return
         
         all_proxies = []
         proxy_anim_map = {}
         
-        fin_anims = ["plavnik_normal_move", "plavnik_normal_move2", "plavnik_wait_pose", "plavnik_crowded"]
-        other_anims = ["normal_move", "wait_pose"]
+        fin_anims = self.physics_mgr.FIN_ANIMS
+        body_anims = self.physics_mgr.BODY_ANIMS
 
-        for key, chains in self.mapping.items():
-            anims = fin_anims if key in ["SideFin", "SideFin2", "BellyFin", "HeadFin"] else other_anims
+        # Проходим по каждой строке в UI
+        for row in valid_rows:
+            is_fin = row["combo"].currentIndex() == 0
+            anims = fin_anims if is_fin else body_anims
             
-            for chain in chains:
-                # Передаем цепь целиком в аргумент ctrl_chain
+            # Проходим по всем цепям внутри строки (Основная + Симметричная)
+            for chain in row["chains"]:
                 proxies = self.physics_mgr.process_spring_logic(
                     ctrl_chain=chain, 
                     anim_list=anims, 
-                    spring_val=self.val_spring.value(), 
-                    twist_val=self.val_twist.value(), 
-                    is_loop=self.chk_loop.isChecked()
+                    spring_val=self.ui.val_spring.value(), 
+                    twist_val=self.ui.val_twist.value(), 
+                    is_loop=self.ui.chk_loop.isChecked()
                 )
-                all_proxies.extend(proxies)
                 
+                all_proxies.extend(proxies)
                 for p in proxies:
                     proxy_anim_map[p] = anims
-
-        self.physics_mgr.final_bake(all_proxies, proxy_anim_map)
+                    
+        if all_proxies:
+            self.physics_mgr.final_bake(all_proxies, proxy_anim_map)
+            QtWidgets.QMessageBox.information(self.ui, "Успех", f"Физика просчитана (с учетом симметрии)!")
+            
+            # Очищаем инпуты после успешного просчета
+            for row in self.rows:
+                row["chains"] = []
+                row["le"].clear()
+    
+    def clean_selected_chains_animation(self):
+        """Удаляет анимацию для всех контролов во всей иерархии выбранных цепей."""
+        nodes_to_clean = []
         
-        QtWidgets.QMessageBox.information(self, "Success", "Все физические циклы запечены и очищены.")
-        self.accept()
+        for row in self.rows:
+            # chains содержит списки: [главная_цепь] или [главная_цепь, симметричная_цепь]
+            for chain in row.get("chains", []):
+                for root_ctrl in chain:
+                    if not cmds.objExists(root_ctrl):
+                        continue
+                        
+                    # Добавляем корневой контрол
+                    nodes_to_clean.append(root_ctrl)
+                    
+                    # Используем логику PhysicsManager для поиска всей цепочки вниз
+                    end_node = self.physics_mgr.get_chain_end(root_ctrl)
+                    
+                    # Собираем всех детей-трансформов
+                    children = cmds.listRelatives(root_ctrl, ad=True, type="transform", fullPath=True) or []
+                    
+                    # Проходим по детям в обратном порядке (как в PhysicsManager), 
+                    # чтобы собрать цепь от корня к кончику
+                    for child in children[::-1]:
+                        shapes = cmds.listRelatives(child, shapes=True) or []
+                        # Проверяем, что это контроллер (имеет nurbsCurve)
+                        if any(cmds.nodeType(s) == "nurbsCurve" for s in shapes):
+                            nodes_to_clean.append(child)
+                            # Если дошли до конца (Gimble), прекращаем сбор
+                            if child == end_node:
+                                break
+        
+        if not nodes_to_clean:
+            QtWidgets.QMessageBox.information(self.ui, "Инфо", "В селекторе нет назначенных цепочек для очистки.")
+            return
+
+        # Убираем дубликаты (на случай пересечения иерархий)
+        nodes_to_clean = list(set(nodes_to_clean))
+        
+        res = cmds.confirmDialog(
+            title='Очистка цепочек | FD_FishTool',
+            message=f'Вы уверены, что хотите сбросить анимацию для {len(nodes_to_clean)} контролов (все выбранные цепи целиком)?',
+            button=['Да', 'Отмена'], defaultButton='Отмена', cancelButton='Отмена'
+        )
+        
+        if res == 'Да':
+            from FD_FishTool.core.anim_handler import AnimationHandler
+            cmds.undoInfo(openChunk=True)
+            try:
+                # Вызываем сброс для расширенного списка нод
+                AnimationHandler.reset_nodes_animation(nodes_to_clean)
+                cmds.inViewMessage(amg="Анимация выбранных цепочек (иерархий) очищена", pos="midCenter", fade=True)
+            finally:
+                cmds.undoInfo(closeChunk=True)

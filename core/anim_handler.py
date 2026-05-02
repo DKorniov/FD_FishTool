@@ -257,3 +257,73 @@ class AnimationHandler:
             mel.eval("updateAnims();")
             
         print(f"FD_FishTool: Добавлено {len(missing_data_list)} недостающих анимаций.")
+    
+    @staticmethod
+    def delete_all_scene_animation():
+        """Удаляет анимацию и возвращает все контролы в дефолтное состояние (Bind Pose)."""
+        # 1. Удаляем временные кривые (time-based ключи)
+        anim_curves = cmds.ls(type=['animCurveTA', 'animCurveTL', 'animCurveTT', 'animCurveTU'])
+        if anim_curves:
+            cmds.delete(anim_curves)
+            print(f"FD_FishTool: Удалено {len(anim_curves)} анимационных кривых.")
+        else:
+            print("FD_FishTool: В сцене нет ключей для удаления.")
+
+        # 2. Ищем все NURBS кривые (визуальные контроллеры рига)
+        nurbs_shapes = cmds.ls(type='nurbsCurve') or []
+        
+        # Получаем их родительские ноды (Transforms), на которых висят атрибуты
+        transforms = list(set(cmds.listRelatives(nurbs_shapes, parent=True, fullPath=True) or []))
+        
+        # 3. Безопасно сбрасываем атрибуты в дефолт (0 0 0  0 0 0  1 1 1)
+        reset_count = 0
+        for node in transforms:
+            # Сброс Translate и Rotate в 0.0
+            for attr in ['tx', 'ty', 'tz', 'rx', 'ry', 'rz']:
+                full_attr = f"{node}.{attr}"
+                try:
+                    # settable=True проверяет, что атрибут не залочен и не привязан к нодам (например, SDK)
+                    if cmds.getAttr(full_attr, settable=True):
+                        cmds.setAttr(full_attr, 0.0)
+                except: 
+                    pass
+                
+            # Сброс Scale в 1.0
+            for attr in ['sx', 'sy', 'sz']:
+                full_attr = f"{node}.{attr}"
+                try:
+                    if cmds.getAttr(full_attr, settable=True):
+                        cmds.setAttr(full_attr, 1.0)
+                except: 
+                    pass
+                
+            reset_count += 1
+            
+        print(f"FD_FishTool: Сброшены значения в Bind Pose (0,0,0 / 1,1,1) для {reset_count} контролов.")
+    
+    @staticmethod
+    def reset_nodes_animation(nodes):
+        """Точечное удаление анимации и сброс в Bind Pose для списка нод."""
+        if not nodes:
+            return
+
+        # 1. Удаляем анимационные кривые, подключенные к этим нодам
+        # Находим все кривые, которые выдают сигнал в выбранные ноды
+        anim_curves = cmds.listConnections(nodes, type='animCurve', destination=False, source=True) or []
+        # Фильтруем только временные кривые (Time-based), не трогая SDK
+        time_curves = [c for c in anim_curves if cmds.nodeType(c) in ['animCurveTA', 'animCurveTL', 'animCurveTT', 'animCurveTU']]
+        
+        if time_curves:
+            cmds.delete(time_curves)
+
+        # 2. Сброс атрибутов в дефолт (0 для T/R, 1 для S)
+        for node in nodes:
+            if not cmds.objExists(node): continue
+            
+            for attr in ['tx', 'ty', 'tz', 'rx', 'ry', 'rz']:
+                if cmds.getAttr(f"{node}.{attr}", settable=True):
+                    cmds.setAttr(f"{node}.{attr}", 0.0)
+            
+            for attr in ['sx', 'sy', 'sz']:
+                if cmds.getAttr(f"{node}.{attr}", settable=True):
+                    cmds.setAttr(f"{node}.{attr}", 1.0)

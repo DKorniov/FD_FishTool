@@ -18,8 +18,8 @@ from FD_FishTool.ui.rig_face_ui import FaceRigTab
 
 
 # Импорты UI (Абсолютные пути для исключения ModuleNotFoundError)
-from FD_FishTool.ui.spring_selector import SpringSelectorWindow
 from FD_FishTool.ui.rig_body_ui import RigBodyWidget
+from FD_FishTool.ui.spring_selector import SpringSelectorController
 
 class FD_MainWindow(QtWidgets.QMainWindow):
     def __init__(self, config, parent=None):
@@ -113,7 +113,7 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         return tab
 
     def ui_animation_tab(self):
-        """Вкладка анимации: Обновленная версия с интеграцией AnimAssist и загрузкой из .ui."""
+        """Вкладка анимации: Полная интеграция Studio Library, Physics Pipeline и AnimAssist."""
         # Путь к файлу .ui
         ui_path = os.path.join(os.path.dirname(__file__), "anim_tab.ui")
         
@@ -128,34 +128,72 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         tab = loader.load(file, self)
         file.close()
 
-        # --- НОВЫЙ БЛОК: AnimAssist Integration ---
-        # Безопасный коннект к логике из загруженного UI
+        # --- 1. STUDIO LIBRARY PRESETS ---
+        # Подключение кнопок выделения сетов (новые функции)
+        tab.btn_select_body.clicked.connect(lambda: self.anim_mgr.select_studio_set("body"))
+        tab.btn_select_face.clicked.connect(lambda: self.anim_mgr.select_studio_set("face"))
+        
+        # Подключение кнопок наложения анимации
+        tab.btn_apply_body.clicked.connect(lambda: self.anim_mgr.apply_studio_anim("body_standart_anim.anim"))
+        tab.btn_apply_face.clicked.connect(lambda: self.anim_mgr.apply_studio_anim("face_standart_anim.anim"))
+        
+        # Глобальная очистка всей анимации в сцене (включая сброс в Bind Pose)
+        tab.btn_clear_all_animation.clicked.connect(self.on_delete_all_animation_clicked)
+        
+        # Подключение централизованной справки
+        try:
+            from FD_FishTool.ui.help_manager import HelpManager
+            # Подключаем все кнопки справки здесь
+            tab.btn_info_stuidio_anims.clicked.connect(lambda: HelpManager.show_studio_library_help(self))
+            tab.btn_info_spring_selector.clicked.connect(lambda: HelpManager.show_physics_help(self))
+        except ImportError:
+            cmds.warning("FD_FishTool: Модуль help_manager не найден. Справка будет недоступна.")
+
+        # --- 2. PHYSICS PIPELINE (SpringMagic) ---
+        try:
+            from FD_FishTool.ui.spring_selector import SpringSelectorController
+            # Инициализируем контроллер для управления динамическими цепочками
+            self.spring_controller = SpringSelectorController(tab, self.physics_mgr, parent=self)
+        except ImportError:
+            cmds.warning("FD_FishTool: Модуль spring_selector не найден.")
+        
+        # Начальное состояние панели (скрыта, завязано на сигнал toggled в UI)
+        tab.frame_spring_magic.setVisible(False)
+        tab.btn_spring_magic.setChecked(False)
+
+        # Логика смены визуального стиля кнопки при раскрытии фрейма
+        def on_spring_btn_toggled(checked):
+            if checked:
+                tab.btn_spring_magic.setStyleSheet("background-color: #5b7a8b; color: white; font-weight: bold;")
+            else:
+                tab.btn_spring_magic.setStyleSheet("background-color: #3d5a6b; color: white; font-weight: bold;")
+                
+        tab.btn_spring_magic.toggled.connect(on_spring_btn_toggled)
+
+        # --- 3. ANIMATION LIST (AnimAssist & Tree) ---
+        # Сохраняем ссылку на дерево для корректной работы метода refresh_anim_list
+        self.anim_tree = tab.tree_anim_list
+        self.anim_tree.itemClicked.connect(self.on_clip_click)
+
+        # Подключение кнопок AnimAssist Management (загрузка эталона в ноду)
         try:
             from FD_FishTool.core import anim_handler
             tab.btn_load_anim_list.clicked.connect(anim_handler.AnimationHandler.load_etalon_animations)
         except Exception as e:
             print(f"FD_FishTool Warning: Could not connect AnimAssist button: {e}")
 
-        # --- СУЩЕСТВУЮЩИЙ КОД: Presets Studio Library ---
-        tab.btn_apply_body.clicked.connect(lambda: self.anim_mgr.apply_studio_anim("body_standart_anim.anim"))
-        tab.btn_apply_face.clicked.connect(lambda: self.anim_mgr.apply_studio_anim("face_standart_anim.anim"))
-
-        # --- СУЩЕСТВУЮЩИЙ КОД: Physics Pipeline (SpringMagic) ---
-        tab.btn_spring_magic.clicked.connect(self.open_spring_selector)
-
-        # --- СУЩЕСТВУЮЩИЙ КОД: Дерево анимаций ---
-        self.anim_tree = tab.tree_anim_list
-        self.anim_tree.itemClicked.connect(self.on_clip_click)
-
-        # Синхронизация
+        # Кнопки управления списком и синхронизация
         tab.btn_sync_list.clicked.connect(self.refresh_anim_list)
-
-        # Кнопки управления списком
+        
+        # Сохраняем ссылки на кнопки для управления их доступностью (Enabled/Disabled)
         self.btn_load_missing = tab.btn_load_missing
         self.btn_clear_list = tab.btn_clear_list
         
         self.btn_load_missing.clicked.connect(self.on_load_missing_clicked)
         self.btn_clear_list.clicked.connect(self.on_clear_list_clicked)
+
+       
+        
 
         return tab
 
@@ -195,9 +233,7 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(prep_group)
         return tab
 
-    def open_spring_selector(self):
-        self.spring_win = SpringSelectorWindow(self.physics_mgr, parent=self)
-        self.spring_win.show()
+    
 
     def run_validation(self):
         errors, success = self.validator.validate_all()
@@ -365,3 +401,25 @@ class FD_MainWindow(QtWidgets.QMainWindow):
             from FD_FishTool.core.anim_handler import AnimationHandler
             AnimationHandler.load_missing_clips(self.missing_animations)
             self.refresh_anim_list()
+    
+    def on_delete_all_animation_clicked(self):
+        """Обработчик удаления всей анимации из сцены с защитой от случайного нажатия."""
+        res = cmds.confirmDialog(
+            title='ВНИМАНИЕ | FD_FishTool',
+            message='Вы уверены, что хотите полностью УДАЛИТЬ ВСЮ анимацию со всех объектов в сцене?\n\nЭто действие затронет все контролы.',
+            button=['Да, удалить', 'Отмена'], 
+            defaultButton='Отмена', 
+            cancelButton='Отмена', 
+            dismissString='Отмена'
+        )
+        if res == 'Да, удалить':
+            # Оборачиваем удаление в Undo Chunk, чтобы можно было отменить по Ctrl+Z
+            cmds.undoInfo(openChunk=True, chunkName="FD_DeleteAllAnimation")
+            try:
+                from FD_FishTool.core.anim_handler import AnimationHandler
+                AnimationHandler.delete_all_scene_animation()
+                cmds.inViewMessage(amg="<hl>Вся анимация удалена со сцены</hl>", pos="midCenter", fade=True)
+            except Exception as e:
+                cmds.warning(f"FD_FishTool: Ошибка при удалении анимации: {e}")
+            finally:
+                cmds.undoInfo(closeChunk=True)
