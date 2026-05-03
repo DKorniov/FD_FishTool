@@ -3,6 +3,8 @@ import os
 from PySide2 import QtWidgets, QtCore, QtGui, QtUiTools
 import maya.cmds as cmds
 from FD_FishTool.core.face_rig_builder import FaceRigBuilder
+from FD_FishTool.core.rig_body import BodyRigManager # Импортируем для градиента
+from FD_FishTool.ui.help_manager import HelpManager # Для кнопок справки
 
 class FacePlacementDialog(QtWidgets.QDialog):
     """Окно для последовательного выбора вертексов (сохранено без изменений)."""
@@ -42,14 +44,17 @@ class FacePlacementDialog(QtWidgets.QDialog):
 
 class FaceRigController(QtWidgets.QWidget):
     """Единый MVC-контроллер для вкладки Face Rig."""
-    def __init__(self, parent=None):
+    def __init__(self, config=None, parent=None):
         super(FaceRigController, self).__init__(parent)
+        self.cfg = config # Сохраняем конфиг
         self.builder = FaceRigBuilder()
+        # Создаем экземпляр менеджера тела для доступа к функции градиента
+        self.body_manager = BodyRigManager(config=self.cfg)
         self.ui = None
         self.dlg = None
         
         self._init_ui()
-        self._setup_selector_grid()
+        
         self._connect_signals()
 
     def _init_ui(self):
@@ -68,86 +73,16 @@ class FaceRigController(QtWidgets.QWidget):
         # Встраиваем загруженный интерфейс в текущий QWidget
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self.ui)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(0, 0, 0, 0)   
 
+        # --- СИНХРОНИЗАЦИЯ UI ПРИ ЗАПУСКЕ ---
+        # Жестко скрываем фрейм и отжимаем кнопку при старте
+        if hasattr(self.ui, 'frame_driven_bones') and hasattr(self.ui, 'btn_driven_bones'):
+            self.ui.frame_driven_bones.setVisible(False)
+            self.ui.btn_driven_bones.setChecked(False)    
         
-        self.ui.group_selector.setStyleSheet("""
-            /* Базовый стиль для всех кнопок селектора */
-            QPushButton {
-                background-color: #444444;
-                color: white;
-                border-radius: 8px;
-                border: 1px solid #333333;
-                font-weight: bold;
-            }
 
-            /* Цвет при наведении */
-            QPushButton:hover {
-                background-color: #555555;
-                border: 1px solid #777777;
-            }
-
-            /* Стили для конкретных групп кнопок (по тексту на кнопке) */
-            
-            /* Глаза и правые веки (Синие оттенки) */
-            QPushButton[text*="R_"]{
-                background-color: #2484d6;
-            }
-                                             
-            /* Глаза и левые веки (Синие оттенки) */
-            QPushButton[text*="L_"]{
-                background-color: #d02173;
-            }
-            
-            /* Брови (фиолетовые) */
-            QPushButton[text*="Brow"] {
-                background-color: #9d53d7;
-            }
-            
-            /* Губы и рот (желтые оттенки) */
-            QPushButton[text*="Lip"], QPushButton[text="Jaw"], QPushButton[text="Sync"], QPushButton[text="Emote"] {
-                background-color: #d6bf55;
-            }
-            
-            /* зубы (серые) */
-            QPushButton[text="Teeth"] {
-                background-color: #a0a0a0;
-            }
-        """)
-
-    def _setup_selector_grid(self):
-        """Программная генерация сетки кнопок для контроллеров и привязка их в .ui layout."""
-        if not hasattr(self.ui, 'layout_selector_grid'):
-            return
-
-        # Уменьшаем расстояния между кнопками для компактности
-        self.ui.layout_selector_grid.setSpacing(4)
-        self.ui.layout_selector_grid.setContentsMargins(5, 5, 5, 5)
-
-        ctrls = [
-            (0,0,"R_Brow","R_Brow_ctrl"),(0,1,"L_Brow","L_Brow_ctrl"),
-            (1,0,"R_Upp_Lid","R_Upp_EyeLid"),(1,1,"L_Upp_Lid","L_Upp_EyeLid"),(1,3,"Sync","Sync"),(1,4,"Upr_Lip","Upr_Lip"),
-            (2,0,"R_Eye","R_Eye_ctrl"),(2,1,"L_Eye","L_Eye_ctrl"), (2,3,"Emote","Emote"), (2,4,"Lwr_Lip","Lwr_Lip"),
-            (3,0,"R_Lwr_Lid","R_Lwr_EyeLid"),(3,1,"L_Lwr_Lid","L_Lwr_EyeLid"), (3,3,"Jaw","Jaw"),(3,4,"Teeth","gui_teeth")
-        ]
-        
-        for r, c, l, n in ctrls:
-            b = QtWidgets.QPushButton(l)
-            
-            # Убираем FixedSize. Даем адекватный минимум, чтобы текст не пропадал, 
-            # и разрешаем тянуться по вертикали и горизонтали.
-            b.setMinimumSize(65, 35)
-            b.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
-            
-            b.clicked.connect(lambda ch=False, name=n: self._on_selector_click(name))
-            self.ui.layout_selector_grid.addWidget(b, r, c)
-
-        # Делаем пустую колонку (индекс 2) "пружинистой", чтобы она не занимала лишнего места,
-        # но при этом визуально отделяла левую часть лица от центральных элементов (Sync, Jaw и т.д.)
-        self.ui.layout_selector_grid.setColumnStretch(2, 0) 
-        # Даем больше веса колонкам с кнопками, чтобы они тянулись равномерно
-        for i in [0, 1, 3, 4]:
-            self.ui.layout_selector_grid.setColumnStretch(i, 1)
+    
 
     def _connect_signals(self):
         if not self.ui: return
@@ -168,6 +103,45 @@ class FaceRigController(QtWidgets.QWidget):
         # Test Tools
         self.ui.btn_gen_anim.clicked.connect(self._run_anim)
         self.ui.btn_clean_anim.clicked.connect(self._run_clean)
+
+        # 1. Подключение кнопок справки
+        if hasattr(self.ui, 'btn_info_driven'):
+            self.ui.btn_info_driven.clicked.connect(lambda: HelpManager.show_driven_bones_help(self))
+        if hasattr(self.ui, 'btn_info_anim_driven'):
+            self.ui.btn_info_anim_driven.clicked.connect(lambda: HelpManager.show_face_anim_test_help(self))
+        if hasattr(self.ui, 'btn_info_key_driven'):
+            self.ui.btn_info_key_driven.clicked.connect(lambda: HelpManager.show_smart_key_help(self))
+        if hasattr(self.ui, 'btn_info_gradient'):
+            self.ui.btn_info_gradient.clicked.connect(lambda: HelpManager.show_gradient_weight_help(self))
+
+                # 2. Подключение адаптивного градиента (Face-версия)
+        if hasattr(self.ui, 'btn_Apply_adaptive_gradient_face'):
+            self.ui.btn_Apply_adaptive_gradient_face.clicked.connect(self._apply_face_gradient)
+
+        # --- ПОДКЛЮЧЕНИЕ СТАТИЧНЫХ КНОПОК ИЗ UI-ФАЙЛА ---
+        selector_map = {
+            'btn_sel_R_Brow': "R_Brow_ctrl",
+            'btn_sel_L_Brow': "L_Brow_ctrl",
+            'btn_sel_R_Upp_Lid': "R_Upp_EyeLid",
+            'btn_sel_L_Upp_Lid': "L_Upp_EyeLid",
+            'btn_sel_Sync': "Sync",
+            'btn_sel_Upr_Lip': "Upr_Lip",
+            'btn_sel_R_Eye': "R_Eye_ctrl",
+            'btn_sel_L_Eye': "L_Eye_ctrl",
+            'btn_sel_Emote': "Emote",
+            'btn_sel_Lwr_Lip': "Lwr_Lip",
+            'btn_sel_R_Lwr_Lid': "R_Lwr_EyeLid",
+            'btn_sel_L_Lwr_Lid': "L_Lwr_EyeLid",
+            'btn_sel_Jaw': "Jaw",
+            'btn_sel_Teeth': "gui_teeth"
+        }
+
+        for btn_name, ctrl_name in selector_map.items():
+            if hasattr(self.ui, btn_name):
+                btn = getattr(self.ui, btn_name)
+                btn.clicked.connect(lambda ch=False, n=ctrl_name: self._on_selector_click(n))
+            else:
+                cmds.warning(f"FD_FishTool: Кнопка {btn_name} не найдена в интерфейсе.")
 
     # --- МЕТОДЫ ЛОГИКИ СЕЛЕКТОРА ---
 
@@ -209,6 +183,39 @@ class FaceRigController(QtWidgets.QWidget):
 
     def _run_clean(self):
         self.builder.clean_test_animation()
+
+
+    def _apply_face_gradient(self):
+        """
+        Умный запуск градиента: 
+        1. Проверяет выбор меша во вкладке Rig Body.
+        2. Если там пусто, берет выделение в сцене.
+        """
+        mesh_name = ""
+        
+        # 1. Пытаемся достучаться до вкладки Body через главное окно
+        main_win = self.window() 
+        
+        if hasattr(main_win, 'rig_body_ui'):
+            body_tab = main_win.rig_body_ui
+            if hasattr(body_tab.ui, 'mesh_combo'):
+                mesh_name = body_tab.ui.mesh_combo.currentText()
+        
+        # 2. Если во вкладке тела ничего не выбрано, берем выделение в Maya
+        if not mesh_name:
+            sel = cmds.ls(sl=True)
+            if sel:
+                mesh_name = sel[0]
+            else:
+                cmds.warning("FD_FishTool: Меш не выбран ни во вкладке Body, ни в сцене!")
+                return
+
+        # 3. Применение функции из ядра
+        try:
+            self.body_manager.apply_topological_gradient(mesh_name)
+            cmds.inViewMessage(amg=f"<hl>Градиент применен к: {mesh_name}</hl>", pos="midCenter", fade=True)
+        except Exception as e:
+            cmds.warning(f"FD_FishTool: Ошибка градиента: {e}")
 
     # --- МЕТОДЫ ЛОГИКИ ГЕНЕРАЦИИ ГЕОМЕТРИИ (Stage 4) ---
 

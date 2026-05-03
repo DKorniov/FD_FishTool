@@ -40,7 +40,7 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         
         self.refresh_anim_list()
         
-        self.face_tab = FaceRigController()
+        self.face_tab = FaceRigController(config=self.cfg)
         if hasattr(self.ui, 'tabs'):
             self.ui.tabs.addTab(self.face_tab, "Face Rig")
     

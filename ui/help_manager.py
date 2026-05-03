@@ -91,3 +91,59 @@ class HelpManager:
                     )
         msg.setIcon(QtWidgets.QMessageBox.Information)
         msg.exec_()
+    
+    # Добавьте эти методы в класс HelpManager в файле help_manager.py
+
+    @staticmethod
+    def show_driven_bones_help(parent=None):
+        title = "Справка | Driven Bones"
+        text = """
+        <h3>Список ведомых костей</h3>
+        В этом списке отображаются кости, которыми управляет выбранный контроллер.
+        <ul>
+            <li><b>Авто-заполнение:</b> Список обновляется автоматически при клике на кнопку в селекторе.</li>
+            <li><b>Выделение:</b> Выбор элементов в списке дублирует выделение костей в сцене Maya.</li>
+        </ul>
+        """
+        HelpDialog(title, text, parent).exec_()
+
+    @staticmethod
+    def show_face_anim_test_help(parent=None):
+        title = "Справка | Face Test Tools"
+        text = """
+        <h3>Тестирование анимации лица</h3>
+        Позволяет быстро проверить деформации меша.
+        <ul>
+            <li><b>Gen Test Anim:</b> Создает ключи на выбранных контроллерах на основе <i>face_test_anim.json</i>.</li>
+            <li><b>Clean & Zero:</b> Удаляет все ключи с лицевых контроллеров и возвращает их в нулевое положение.</li>
+        </ul>
+        """
+        HelpDialog(title, text, parent).exec_()
+
+    @staticmethod
+    def show_smart_key_help(parent=None):
+        title = "Справка | SMART KEY"
+        text = """
+        <h3>Логика SMART KEY</h3>
+        Эта кнопка автоматизирует создание <b>Set Driven Key</b> (SDK).
+        <br><br>
+        Она определяет тип контроллера (челюсть, веки, губы) и автоматически проставляет ключи 
+        в нужных квадрантах (Pos Y, Neg Y и т.д.), включая зеркалирование на противоположную сторону.
+        """
+        HelpDialog(title, text, parent).exec_()
+
+    @staticmethod
+    def show_gradient_weight_help(parent=None):
+        title = "Справка | Adaptive Gradient Weight"
+        text = """
+        <h3>Adaptive Gradient (Топологический градиент)</h3>
+        Этот инструмент плавно и автоматически распределяет веса скиннинга, опираясь на <b>топологию (Edge Loops)</b> меша, а не просто на расстояние между точками.
+        <br><br>
+        <b>Как это работает:</b>
+        <ul>
+            <li>Берет меш, выбранный во вкладке <b>Body</b> (или выделенный в сцене).</li>
+            <li>Анализирует сетку лица и создает идеальный градиент затухания весов для выделенных вертексов/костей.</li>
+            <li>Отлично подходит для гладкого скиннинга губ, век и бровей.</li>
+        </ul>
+        """
+        HelpDialog(title, text, parent).exec_()
