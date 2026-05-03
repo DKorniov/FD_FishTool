@@ -62,62 +62,7 @@ class MaterialPlacementDialog(QtWidgets.QDialog):
             self.callback(self.results)
             self.close()
 
-class HelpDialog(QtWidgets.QDialog):
-    """Универсальное окно справки с поддержкой текста, изображений и GIF."""
-    def __init__(self, title, html_text, image_filename=None, parent=None):
-        super(HelpDialog, self).__init__(parent)
-        self.setWindowTitle(title)
-        self.setMinimumSize(400, 300)
-        # Окно будет поверх Maya, но не заблокирует её работу (Modeless)
-        self.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.WindowStaysOnTopHint)
-        
-        layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(10)
 
-        # 1. БЛОК ИЗОБРАЖЕНИЯ ИЛИ GIF
-        if image_filename:
-            # Ищем файл в папке data/help
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            img_path = os.path.join(current_dir, "..", "data", "help", image_filename)
-            img_path = os.path.normpath(img_path)
-
-            if os.path.exists(img_path):
-                img_label = QtWidgets.QLabel()
-                img_label.setAlignment(QtCore.Qt.AlignCenter)
-                
-                # Если это GIF - запускаем через QMovie
-                if img_path.lower().endswith('.gif'):
-                    self.movie = QtGui.QMovie(img_path)
-                    img_label.setMovie(self.movie)
-                    self.movie.start()
-                # Если статичная картинка - грузим через QPixmap
-                else:
-                    pixmap = QtGui.QPixmap(img_path)
-                    # Слегка масштабируем, если картинка огромная
-                    pixmap = pixmap.scaled(600, 600, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
-                    img_label.setPixmap(pixmap)
-                    
-                layout.addWidget(img_label)
-            else:
-                # Заглушка, если файл не найден
-                err_lbl = QtWidgets.QLabel(f"<i>[Изображение не найдено: data/help/{image_filename}]</i>")
-                err_lbl.setStyleSheet("color: red;")
-                err_lbl.setAlignment(QtCore.Qt.AlignCenter)
-                layout.addWidget(err_lbl)
-
-        # 2. БЛОК ТЕКСТА
-        text_label = QtWidgets.QLabel(html_text)
-        text_label.setWordWrap(True)
-        text_label.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
-        text_label.setStyleSheet("font-size: 10pt;")
-        layout.addWidget(text_label)
-
-        # 3. КНОПКА ЗАКРЫТИЯ
-        btn_close = QtWidgets.QPushButton("Понятно")
-        btn_close.setFixedHeight(35)
-        btn_close.clicked.connect(self.close)
-        layout.addWidget(btn_close)
 
 class AddBoneDialog(QtWidgets.QDialog):
     """Диалоговое окно для добавления кости в список UI (Аналог addBoneUI из оригинала)."""
@@ -178,7 +123,7 @@ class RigBodyWidget(QtWidgets.QWidget):
 
     def setup_ui(self):
         # 1. Загрузка интерфейса
-        from PySide2 import QtUiTools
+        from PySide2 import QtUiTools, QtGui
         import os
         
         loader = QtUiTools.QUiLoader()
@@ -200,15 +145,42 @@ class RigBodyWidget(QtWidgets.QWidget):
         if hasattr(self.ui, 'mesh_combo'):
             self.mesh_combo = self.ui.mesh_combo
 
-        # 4. СВОРАЧИВАЕМ ГАРМОШКУ (Accordion) ПО УМОЛЧАНИЮ
+        # 4. СВОРАЧИВАЕМ ГАРМОШКУ (Accordion) И ДОБАВЛЯЕМ ИКОНКИ
         accordions = [
-            'btn_model_prepare', 'btn_bones_controls', 'btn_skinning', 
-            'btn_stage_skin', 'btn_skin_animation', 'pushButton_16', # pushButton_16 это кнопка SkinMagic
-            'btn_reskin'
+            ('btn_model_prepare', 'frame_model_prepare'),
+            ('btn_bones_controls', 'frame_bones_controls'),
+            ('btn_skinning', 'frame_skinning'),
+            ('btn_stage_skin', 'frame_stage_skin'),
+            ('btn_skin_animation', 'frame_skin_animation'),
+            ('pushButton_16', 'frame_skinmagic'),
+            ('btn_reskin', 'frame_reskin'),
+            ('btn_texturing', 'frame_texturing'),
+            ('btn_weigt_data', 'frame')
         ]
-        for btn_name in accordions:
+        
+        # Загружаем иконки по безопасным абсолютным путям
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_right_path = os.path.normpath(os.path.join(current_dir, "..", "icons", "arrow_right.png"))
+        icon_down_path = os.path.normpath(os.path.join(current_dir, "..", "icons", "arrow_down.png"))
+
+        # Создаем "Умную" иконку: она сама меняет картинку в зависимости от состояния кнопки (Отжата/Нажата)
+        accordion_icon = QtGui.QIcon()
+        if os.path.exists(icon_right_path) and os.path.exists(icon_down_path):
+            accordion_icon.addPixmap(QtGui.QPixmap(icon_right_path), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+            accordion_icon.addPixmap(QtGui.QPixmap(icon_down_path), QtGui.QIcon.Normal, QtGui.QIcon.On)
+
+        for btn_name, frame_name in accordions:
             if hasattr(self.ui, btn_name):
-                getattr(self.ui, btn_name).setChecked(False)
+                btn = getattr(self.ui, btn_name)
+                btn.setChecked(False)
+                
+                # Если иконки найдены, применяем их
+                if not accordion_icon.isNull():
+                    btn.setIcon(accordion_icon)
+            
+            # Принудительно скрываем сам фрейм при запуске
+            if hasattr(self.ui, frame_name):
+                getattr(self.ui, frame_name).setVisible(False)
 
         # 5. ПОДКЛЮЧАЕМ ВСЕ КНОПКИ
         self._connect_rig_manager()
@@ -216,7 +188,6 @@ class RigBodyWidget(QtWidgets.QWidget):
 
         # Запускаем слушатель выделения для списков весов
         self._setup_weight_ui_events()
-
            
 
     def refresh_mesh_list(self):
@@ -302,6 +273,9 @@ class RigBodyWidget(QtWidgets.QWidget):
             self.ui.btn_info_stage_skin.clicked.connect(lambda: HelpManager.show_stage_skin_help(self))
         if hasattr(self.ui, 'btn_info_skin_animation'):
             self.ui.btn_info_skin_animation.clicked.connect(lambda: HelpManager.show_skin_anim_help(self))
+        if hasattr(self.ui, 'btn_info_btn_adaptive_gradient'):
+            self.ui.btn_info_btn_adaptive_gradient.clicked.connect(lambda: HelpManager.show_gradient_weight_help(self))
+
         
 
         # --- Блок: Adaptive Gradient ---

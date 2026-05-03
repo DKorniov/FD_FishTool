@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 from PySide2 import QtWidgets, QtCore, QtGui
 
 class HelpDialog(QtWidgets.QDialog):
@@ -7,15 +8,16 @@ class HelpDialog(QtWidgets.QDialog):
         super(HelpDialog, self).__init__(parent)
         self.setWindowTitle(title)
         self.setMinimumSize(400, 300)
+        # Окно будет поверх Maya, но не заблокирует её работу (Modeless)
         self.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.WindowStaysOnTopHint)
         
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(10)
 
-        # БЛОК ИЗОБРАЖЕНИЯ ИЛИ GIF
+        # 1. БЛОК ИЗОБРАЖЕНИЯ ИЛИ GIF
         if image_filename:
-            # Путь к данным: FD_FishTool/data/help/
+            # Ищем файл в папке data/help относительно текущего файла
             current_dir = os.path.dirname(os.path.abspath(__file__))
             img_path = os.path.normpath(os.path.join(current_dir, "..", "data", "help", image_filename))
 
@@ -23,22 +25,33 @@ class HelpDialog(QtWidgets.QDialog):
                 img_label = QtWidgets.QLabel()
                 img_label.setAlignment(QtCore.Qt.AlignCenter)
                 
+                # Если это GIF - запускаем через QMovie
                 if img_path.lower().endswith('.gif'):
                     self.movie = QtGui.QMovie(img_path)
                     img_label.setMovie(self.movie)
                     self.movie.start()
+                # Если статичная картинка - грузим через QPixmap
                 else:
                     pixmap = QtGui.QPixmap(img_path)
                     pixmap = pixmap.scaled(600, 600, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
                     img_label.setPixmap(pixmap)
+                    
                 layout.addWidget(img_label)
+            else:
+                # Заглушка, если файл не найден
+                err_lbl = QtWidgets.QLabel(f"<i>[Изображение не найдено: data/help/{image_filename}]</i>")
+                err_lbl.setStyleSheet("color: red;")
+                err_lbl.setAlignment(QtCore.Qt.AlignCenter)
+                layout.addWidget(err_lbl)
 
-        # БЛОК ТЕКСТА
+        # 2. БЛОК ТЕКСТА
         text_label = QtWidgets.QLabel(html_text)
         text_label.setWordWrap(True)
+        text_label.setAlignment(QtCore.Qt.AlignTop | QtCore.Qt.AlignLeft)
         text_label.setStyleSheet("font-size: 10pt;")
         layout.addWidget(text_label)
 
+        # 3. КНОПКА ЗАКРЫТИЯ
         btn_close = QtWidgets.QPushButton("Понятно")
         btn_close.setFixedHeight(35)
         btn_close.clicked.connect(self.accept)
@@ -82,23 +95,8 @@ class HelpManager:
         </ul>
         <i>Примечание: Анимация берется из папки data/studio_lib.</i>
         """
-        HelpDialog(title, text, parent).exec_()
+        HelpDialog(title, text, parent=parent).exec_()
 
-    @staticmethod
-    def show_physics_help(parent=None):
-        title = "Справка | Physics Pipeline"
-        text = """
-        <h3>Автоматизация SpringMagic</h3>
-        Инструмент позволяет просчитывать физику сразу для нескольких цепочек и во всех нужных анимациях.
-        <ol>
-            <li>Добавьте цепочку кнопкой <b>+</b>.</li>
-            <li>Выберите контролы в сцене и нажмите <b>Выбрать</b>.</li>
-            <li>Укажите тип (Fin — для плавников, Body — для хвоста).</li>
-            <li>Нажмите <b>Просчитать</b>.</li>
-        </ol>
-        """
-        HelpDialog(title, text, parent).exec_()
-    
     @staticmethod
     def show_physics_help(parent=None):
         title = "Справка | Spring Selector"
@@ -112,7 +110,7 @@ class HelpManager:
             <li><b>Очистить выбранные</b> — удаляет анимацию только с тех костей, что вы добавили в список выше.</li>
         </ul>
         """
-        HelpDialog(title, text, parent).exec_()
+        HelpDialog(title, text, parent=parent).exec_()
     
     @staticmethod
     def show_export_help(parent=None):
@@ -135,14 +133,12 @@ class HelpManager:
         msg = QtWidgets.QMessageBox(parent)
         msg.setWindowTitle("Справка: Подготовка и Экспорт")
         msg.setText("<b>Техническая проверка сцены:</b><br><br>"
-                    "1. <b> Переключает между режимами экпорта и рига.<br>"
-                    "2. <b> Переносит кости и контролы в соответсвующие папки.<br>"
+                    "1. <b> Переключает между режимами экспорта и рига.<br>"
+                    "2. <b> Переносит кости и контролы в соответствующие папки.<br>"
                     "3. <b> Переименовывает кости для игрового движка.<br><br>"
                     )
         msg.setIcon(QtWidgets.QMessageBox.Information)
         msg.exec_()
-    
-    # Добавьте эти методы в класс HelpManager в файле help_manager.py
 
     @staticmethod
     def show_driven_bones_help(parent=None):
@@ -155,7 +151,7 @@ class HelpManager:
             <li><b>Выделение:</b> Выбор элементов в списке дублирует выделение костей в сцене Maya.</li>
         </ul>
         """
-        HelpDialog(title, text, parent).exec_()
+        HelpDialog(title, text, parent=parent).exec_()
 
     @staticmethod
     def show_face_anim_test_help(parent=None):
@@ -168,7 +164,7 @@ class HelpManager:
             <li><b>Clean & Zero:</b> Удаляет все ключи с лицевых контроллеров и возвращает их в нулевое положение.</li>
         </ul>
         """
-        HelpDialog(title, text, parent).exec_()
+        HelpDialog(title, text, parent=parent).exec_()
 
     @staticmethod
     def show_smart_key_help(parent=None):
@@ -180,7 +176,7 @@ class HelpManager:
         Она определяет тип контроллера (челюсть, веки, губы) и автоматически проставляет ключи 
         в нужных квадрантах (Pos Y, Neg Y и т.д.), включая зеркалирование на противоположную сторону.
         """
-        HelpDialog(title, text, parent).exec_()
+        HelpDialog(title, text, parent=parent).exec_()
 
     @staticmethod
     def show_gradient_weight_help(parent=None):
@@ -196,4 +192,4 @@ class HelpManager:
             <li>Отлично подходит для гладкого скиннинга губ, век и бровей.</li>
         </ul>
         """
-        HelpDialog(title, text, parent).exec_()
+        HelpDialog(title, text, parent=parent).exec_()

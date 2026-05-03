@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>670</width>
+    <width>751</width>
     <height>1208</height>
    </rect>
   </property>
@@ -20,7 +20,19 @@
    <string>Form</string>
   </property>
   <layout class="QGridLayout" name="gridLayout_29">
-   <item row="1" column="0">
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <item row="2" column="0" colspan="2">
     <layout class="QGridLayout" name="main_rig_layout">
      <property name="spacing">
       <number>0</number>
@@ -46,20 +58,26 @@
         <property name="geometry">
          <rect>
           <x>0</x>
-          <y>-745</y>
-          <width>633</width>
-          <height>1895</height>
+          <y>-235</y>
+          <width>732</width>
+          <height>1951</height>
          </rect>
         </property>
         <layout class="QGridLayout" name="gridLayout_8">
+         <property name="leftMargin">
+          <number>3</number>
+         </property>
+         <property name="topMargin">
+          <number>3</number>
+         </property>
          <property name="rightMargin">
-          <number>0</number>
+          <number>3</number>
          </property>
          <property name="bottomMargin">
-          <number>0</number>
+          <number>3</number>
          </property>
          <property name="horizontalSpacing">
-          <number>0</number>
+          <number>6</number>
          </property>
          <item row="5" column="0">
           <widget class="QFrame" name="frame_bones_controls">
@@ -1177,8 +1195,29 @@
             </property>
             <item row="6" column="0">
              <widget class="QPushButton" name="btn_weigt_data">
+              <property name="styleSheet">
+               <string notr="true">QPushButton {
+    text-align: left;          /* Текст слева, а не по центру */
+    padding-left: 25px;        /* Отступ от левого края */
+    font-size: 11pt;           /* Крупный шрифт */
+    font-weight: bold;         /* Жирный текст */
+    background-color: #444444; /* Темно-серый фон */
+    border: 1px solid #2b2b2b;
+    border-radius: 2px;
+    min-height: 28px;          /* Делаем кнопку высокой */
+}
+
+QPushButton:hover {
+    background-color: #555555; /* Подсветка при наведении */
+}
+
+QPushButton:checked {
+    background-color: #3b5c75; /* Синеватый фон для открытого блока (как в Maya) */
+    color: white;
+}</string>
+              </property>
               <property name="text">
-               <string>Weight Data</string>
+               <string>   Weight Data</string>
               </property>
               <property name="checkable">
                <bool>true</bool>
@@ -3113,8 +3152,29 @@
             </item>
             <item row="1" column="0">
              <widget class="QPushButton" name="btn_stage_skin">
+              <property name="styleSheet">
+               <string notr="true">QPushButton {
+    text-align: left;          /* Текст слева, а не по центру */
+    padding-left: 25px;        /* Отступ от левого края */
+    font-size: 11pt;           /* Крупный шрифт */
+    font-weight: bold;         /* Жирный текст */
+    background-color: #444444; /* Темно-серый фон */
+    border: 1px solid #2b2b2b;
+    border-radius: 2px;
+    min-height: 28px;          /* Делаем кнопку высокой */
+}
+
+QPushButton:hover {
+    background-color: #555555; /* Подсветка при наведении */
+}
+
+QPushButton:checked {
+    background-color: #3b5c75; /* Синеватый фон для открытого блока (как в Maya) */
+    color: white;
+}</string>
+              </property>
               <property name="text">
-               <string>Stage Skin</string>
+               <string>   Stage Skin</string>
               </property>
               <property name="checkable">
                <bool>true</bool>
@@ -3135,8 +3195,29 @@
                 <verstretch>0</verstretch>
                </sizepolicy>
               </property>
+              <property name="styleSheet">
+               <string notr="true">QPushButton {
+    text-align: left;          /* Текст слева, а не по центру */
+    padding-left: 25px;        /* Отступ от левого края */
+    font-size: 11pt;           /* Крупный шрифт */
+    font-weight: bold;         /* Жирный текст */
+    background-color: #444444; /* Темно-серый фон */
+    border: 1px solid #2b2b2b;
+    border-radius: 2px;
+    min-height: 28px;          /* Делаем кнопку высокой */
+}
+
+QPushButton:hover {
+    background-color: #555555; /* Подсветка при наведении */
+}
+
+QPushButton:checked {
+    background-color: #3b5c75; /* Синеватый фон для открытого блока (как в Maya) */
+    color: white;
+}</string>
+              </property>
               <property name="text">
-               <string>skin animations</string>
+               <string>   Skin animations</string>
               </property>
               <property name="checkable">
                <bool>true</bool>
@@ -3154,8 +3235,29 @@
                 <verstretch>0</verstretch>
                </sizepolicy>
               </property>
+              <property name="styleSheet">
+               <string notr="true">QPushButton {
+    text-align: left;          /* Текст слева, а не по центру */
+    padding-left: 25px;        /* Отступ от левого края */
+    font-size: 11pt;           /* Крупный шрифт */
+    font-weight: bold;         /* Жирный текст */
+    background-color: #444444; /* Темно-серый фон */
+    border: 1px solid #2b2b2b;
+    border-radius: 2px;
+    min-height: 28px;          /* Делаем кнопку высокой */
+}
+
+QPushButton:hover {
+    background-color: #555555; /* Подсветка при наведении */
+}
+
+QPushButton:checked {
+    background-color: #3b5c75; /* Синеватый фон для открытого блока (как в Maya) */
+    color: white;
+}</string>
+              </property>
               <property name="text">
-               <string>RE-skin</string>
+               <string>   RE-skin</string>
               </property>
               <property name="checkable">
                <bool>true</bool>
@@ -3173,8 +3275,29 @@
                 <verstretch>0</verstretch>
                </sizepolicy>
               </property>
+              <property name="styleSheet">
+               <string notr="true">QPushButton {
+    text-align: left;          /* Текст слева, а не по центру */
+    padding-left: 25px;        /* Отступ от левого края */
+    font-size: 11pt;           /* Крупный шрифт */
+    font-weight: bold;         /* Жирный текст */
+    background-color: #444444; /* Темно-серый фон */
+    border: 1px solid #2b2b2b;
+    border-radius: 2px;
+    min-height: 28px;          /* Делаем кнопку высокой */
+}
+
+QPushButton:hover {
+    background-color: #555555; /* Подсветка при наведении */
+}
+
+QPushButton:checked {
+    background-color: #3b5c75; /* Синеватый фон для открытого блока (как в Maya) */
+    color: white;
+}</string>
+              </property>
               <property name="text">
-               <string>SkinMagic</string>
+               <string>   SkinMagic</string>
               </property>
               <property name="checkable">
                <bool>true</bool>
@@ -3198,7 +3321,7 @@
              </spacer>
             </item>
             <item row="7" column="0">
-             <widget class="QFrame" name="frame">
+             <widget class="QFrame" name="frame_weigt_data">
               <property name="frameShape">
                <enum>QFrame::NoFrame</enum>
               </property>
@@ -3536,13 +3659,34 @@ p, li { white-space: pre-wrap; }
           <widget class="QPushButton" name="btn_texturing">
            <property name="font">
             <font>
-             <pointsize>10</pointsize>
+             <pointsize>11</pointsize>
              <weight>75</weight>
              <bold>true</bold>
             </font>
            </property>
+           <property name="styleSheet">
+            <string notr="true">QPushButton {
+    text-align: left;          /* Текст слева, а не по центру */
+    padding-left: 15px;        /* Отступ от левого края */
+    font-size: 11pt;           /* Крупный шрифт */
+    font-weight: bold;         /* Жирный текст */
+    background-color: #444444; /* Темно-серый фон */
+    border: 1px solid #2b2b2b;
+    border-radius: 2px;
+    min-height: 28px;          /* Делаем кнопку высокой */
+}
+
+QPushButton:hover {
+    background-color: #555555; /* Подсветка при наведении */
+}
+
+QPushButton:checked {
+    background-color: #3b5c75; /* Синеватый фон для открытого блока (как в Maya) */
+    color: white;
+}</string>
+           </property>
            <property name="text">
-            <string>texturing</string>
+            <string>   Texturing</string>
            </property>
            <property name="checkable">
             <bool>true</bool>
@@ -3562,13 +3706,34 @@ p, li { white-space: pre-wrap; }
            </property>
            <property name="font">
             <font>
-             <pointsize>10</pointsize>
+             <pointsize>11</pointsize>
              <weight>75</weight>
              <bold>true</bold>
             </font>
            </property>
+           <property name="styleSheet">
+            <string notr="true">QPushButton {
+    text-align: left;          /* Текст слева, а не по центру */
+    padding-left: 15px;        /* Отступ от левого края */
+    font-size: 11pt;           /* Крупный шрифт */
+    font-weight: bold;         /* Жирный текст */
+    background-color: #444444; /* Темно-серый фон */
+    border: 1px solid #2b2b2b;
+    border-radius: 2px;
+    min-height: 28px;          /* Делаем кнопку высокой */
+}
+
+QPushButton:hover {
+    background-color: #555555; /* Подсветка при наведении */
+}
+
+QPushButton:checked {
+    background-color: #3b5c75; /* Синеватый фон для открытого блока (как в Maya) */
+    color: white;
+}</string>
+           </property>
            <property name="text">
-            <string>model prepare</string>
+            <string>   Model prepare</string>
            </property>
            <property name="checkable">
             <bool>true</bool>
@@ -3591,13 +3756,34 @@ p, li { white-space: pre-wrap; }
            </property>
            <property name="font">
             <font>
-             <pointsize>10</pointsize>
+             <pointsize>11</pointsize>
              <weight>75</weight>
              <bold>true</bold>
             </font>
            </property>
+           <property name="styleSheet">
+            <string notr="true">QPushButton {
+    text-align: left;          /* Текст слева, а не по центру */
+    padding-left: 15px;        /* Отступ от левого края */
+    font-size: 11pt;           /* Крупный шрифт */
+    font-weight: bold;         /* Жирный текст */
+    background-color: #444444; /* Темно-серый фон */
+    border: 1px solid #2b2b2b;
+    border-radius: 2px;
+    min-height: 28px;          /* Делаем кнопку высокой */
+}
+
+QPushButton:hover {
+    background-color: #555555; /* Подсветка при наведении */
+}
+
+QPushButton:checked {
+    background-color: #3b5c75; /* Синеватый фон для открытого блока (как в Maya) */
+    color: white;
+}</string>
+           </property>
            <property name="text">
-            <string>skinning</string>
+            <string>   Skinning</string>
            </property>
            <property name="checkable">
             <bool>true</bool>
@@ -3617,13 +3803,34 @@ p, li { white-space: pre-wrap; }
            </property>
            <property name="font">
             <font>
-             <pointsize>10</pointsize>
+             <pointsize>11</pointsize>
              <weight>75</weight>
              <bold>true</bold>
             </font>
            </property>
+           <property name="styleSheet">
+            <string notr="true">QPushButton {
+    text-align: left;          /* Текст слева, а не по центру */
+    padding-left: 15px;        /* Отступ от левого края */
+    font-size: 11pt;           /* Крупный шрифт */
+    font-weight: bold;         /* Жирный текст */
+    background-color: #444444; /* Темно-серый фон */
+    border: 1px solid #2b2b2b;
+    border-radius: 2px;
+    min-height: 28px;          /* Делаем кнопку высокой */
+}
+
+QPushButton:hover {
+    background-color: #555555; /* Подсветка при наведении */
+}
+
+QPushButton:checked {
+    background-color: #3b5c75; /* Синеватый фон для открытого блока (как в Maya) */
+    color: white;
+}</string>
+           </property>
            <property name="text">
-            <string>bones_controls</string>
+            <string>   Bones controls</string>
            </property>
            <property name="checkable">
             <bool>true</bool>
@@ -3639,7 +3846,14 @@ p, li { white-space: pre-wrap; }
      </item>
     </layout>
    </item>
-   <item row="0" column="0">
+   <item row="4" column="1">
+    <widget class="QPushButton" name="btn_info_btn_adaptive_gradient">
+     <property name="text">
+      <string>?</string>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="0" colspan="2">
     <widget class="QPushButton" name="btn_Apply_adaptive_gradient">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
@@ -4082,6 +4296,26 @@ p, li { white-space: pre-wrap; }
      </property>
     </widget>
    </item>
+   <item row="4" column="0">
+    <widget class="QLabel" name="label_adaptive_gradient">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="text">
+      <string>Используй Gradient weight для плавного скина между 2 костями </string>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="0" colspan="2">
+    <widget class="Line" name="line_4">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+    </widget>
+   </item>
   </layout>
  </widget>
  <resources/>
@@ -4217,7 +4451,7 @@ p, li { white-space: pre-wrap; }
   <connection>
    <sender>btn_weigt_data</sender>
    <signal>toggled(bool)</signal>
-   <receiver>frame</receiver>
+   <receiver>frame_weigt_data</receiver>
    <slot>setVisible(bool)</slot>
    <hints>
     <hint type="sourcelabel">
