@@ -4,6 +4,7 @@ import sys
 import importlib
 import json
 from PySide2 import QtWidgets, QtCore, QtGui, QtUiTools
+from FD_FishTool.core.scene_cleanup import SceneCleanup
 import maya.cmds as cmds
 
 class ExportController(QtWidgets.QWidget):
@@ -17,8 +18,6 @@ class ExportController(QtWidgets.QWidget):
         self.init_ui()
 
     def init_ui(self):
-        # ... (код загрузки .ui файла остается прежним)
-        
         loader = QtUiTools.QUiLoader()
         ui_path = os.path.join(os.path.dirname(__file__), "export_tab.ui")
         file = QtCore.QFile(ui_path)
@@ -37,14 +36,10 @@ class ExportController(QtWidgets.QWidget):
         # --- ПОДКЛЮЧЕНИЕ КНОПОК СПРАВКИ ---
         try:
             from FD_FishTool.ui.help_manager import HelpManager
-            
-            # Подключаем кнопку инфо для валидации
             if hasattr(self.ui, 'btn_info_validate'):
                 self.ui.btn_info_validate.clicked.connect(
                     lambda: HelpManager.show_export_help(self)
                 )
-            
-            # Подключаем кнопку инфо для подготовки
             if hasattr(self.ui, 'btn_info_preparation'):
                 self.ui.btn_info_preparation.clicked.connect(
                     lambda: HelpManager.show_export_preparation_help(self)
@@ -52,7 +47,7 @@ class ExportController(QtWidgets.QWidget):
         except ImportError:
             cmds.warning("FD_FishTool: HelpManager не найден, справка экспорта недоступна.")
 
-        # --- ПОДКЛЮЧЕНИЕ ОСТАЛЬНЫХ КНОПОК ---
+        # --- ПОДКЛЮЧЕНИЕ ОСНОВНЫХ КНОПОК ---
         if hasattr(self.ui, 'btn_validate'):
             self.ui.btn_validate.clicked.connect(self.run_validation)
             
@@ -66,40 +61,36 @@ class ExportController(QtWidgets.QWidget):
         if self.report_tree:
             self.report_tree.setHeaderLabels(["Результат", "Описание"])
 
-        self.build_dynamic_ui()
+        # --- ПОДКЛЮЧЕНИЕ КНОПОК ОЧИСТКИ (Clean Up) ---
+        self._connect_cleanup()
 
-    def build_dynamic_ui(self):
-        """Парсинг export_config.json для создания кастомных блоков интерфейса (чекбоксы/доп. настройки)."""
-        config_path = os.path.join(self.cfg.data_path if self.cfg else "", "export_config.json")
-        if not os.path.exists(config_path):
-            return # Если конфига нет, работаем с базовым статичным UI
+    def _connect_cleanup(self):
+        """Подключает кнопки Clean Up из постоянного UI к новому модулю SceneCleanup."""
+        # Сворачиваем гармошку по умолчанию
+        if hasattr(self.ui, 'btn_clean_up'):
+            self.ui.btn_clean_up.setChecked(False)
+        if hasattr(self.ui, 'frame_clean_up'):
+            self.ui.frame_clean_up.setVisible(False)
 
         try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                export_data = json.load(f)
-
-            # Если в UI предусмотрен лэйаут для динамических элементов (например, dynamic_layout)
-            dyn_layout = getattr(self.ui, 'dynamic_layout', None)
-            if not dyn_layout:
-                return
-
-            # Генерируем элементы из конфига
-            for block in export_data.get("blocks", []):
-                group = QtWidgets.QGroupBox(block.get("title", "Настройки"))
-                g_layout = QtWidgets.QVBoxLayout(group)
-                
-                for opt in block.get("options", []):
-                    if opt["type"] == "checkbox":
-                        cb = QtWidgets.QCheckBox(opt["label"])
-                        cb.setChecked(opt.get("default", True))
-                        # Присваиваем objectName для последующего доступа к состоянию
-                        cb.setObjectName(opt["id"]) 
-                        g_layout.addWidget(cb)
-                        
-                dyn_layout.addWidget(group)
-
-        except Exception as e:
-            cmds.warning(f"FD_FishTool: Ошибка при парсинге export_config.json: {e}")
+            from FD_FishTool.core.scene_cleanup import SceneCleanup
+            
+            # Связываем постоянные имена кнопок, перенесенных из rig_body.ui
+            cleanup_connections = {
+                'misc_runButton': SceneCleanup.remove_unknown_nodes,
+                'misc_runButton_6': SceneCleanup.clean_custom_attrs,
+                'misc_runButton_3': SceneCleanup.mesh_cleanup,
+                'misc_runButton_5': SceneCleanup.clean_weightless_bones,
+                'misc_runButton_7': SceneCleanup.delete_non_skin_history,
+                'misc_runButton_8': SceneCleanup.build_weight_map,
+            }
+            
+            for btn_name, func in cleanup_connections.items():
+                if hasattr(self.ui, btn_name):
+                    getattr(self.ui, btn_name).clicked.connect(func)
+                    
+        except ImportError as e:
+            cmds.warning(f"FD_FishTool: Не удалось подключить SceneCleanup: {e}")
 
     # --- ЛОГИКА ЭКСПОРТА И ВАЛИДАЦИИ ---
 
@@ -209,3 +200,51 @@ class ExportController(QtWidgets.QWidget):
                 cmds.warning("FD_FishTool: Не найден метод запуска в playrix.export.main_dialog")
         except Exception as e:
             cmds.warning(f"Ошибка при открытии экспортера: {e}")
+
+    def _get_target_mesh(self):
+        """Интеллектуальный поиск меша для работы."""
+        # 1. Пробуем достать меш из вкладки Body Rig
+        try:
+            # Путь: MainWindow -> RigBodyWidget -> mesh_combo
+            main_win = self.main_window
+            if hasattr(main_win, 'rig_body_tab'):
+                mesh = main_win.rig_body_tab.mesh_combo.currentText()
+                if mesh and cmds.objExists(mesh):
+                    return mesh
+        except Exception:
+            pass
+        
+        # 2. Если там пусто — берем из выделения
+        sel = cmds.ls(sl=True, type='transform')
+        return sel[0] if sel else None
+
+    def run_cleanup_weight(self):
+        mesh = self._get_target_mesh()
+        SceneCleanup.clean_weightless_bones(mesh)
+
+    def run_cleanup_scene(self):
+        SceneCleanup.remove_unknown()
+        mesh = self._get_target_mesh()
+        if mesh:
+            SceneCleanup.mesh_optimize(mesh)
+
+    def build_dynamic_ui(self):
+        # Добавим программно блок Cleanup, пока вы не обновили .ui файл
+        layout = self.ui.layout() # Или найдите нужный layout в ui
+        
+        group = QtWidgets.QGroupBox("Scene Cleanup")
+        v_layout = QtWidgets.QVBoxLayout(group)
+        
+        btn_clean_bones = QtWidgets.QPushButton("Clean Weightless Bones")
+        btn_clean_bones.clicked.connect(self.run_cleanup_weight)
+        
+        btn_full_clean = QtWidgets.QPushButton("Full Scene Cleanup (Unknown/History)")
+        btn_full_clean.setStyleSheet("background-color: #5D6D7E; color: white;")
+        btn_full_clean.clicked.connect(self.run_cleanup_scene)
+        
+        v_layout.addWidget(btn_clean_bones)
+        v_layout.addWidget(btn_full_clean)
+        
+        # Вставляем блок в интерфейс (например, перед кнопкой валидации)
+        if hasattr(self.ui, 'dynamic_layout'):
+            self.ui.dynamic_layout.addWidget(group)   

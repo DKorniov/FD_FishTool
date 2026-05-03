@@ -2,23 +2,73 @@
 from PySide2 import QtWidgets, QtCore, QtGui
 
 class HelpDialog(QtWidgets.QDialog):
-    """Универсальное окно справки."""
-    def __init__(self, title, text, parent=None):
+    """Универсальное окно справки с поддержкой текста, изображений и GIF."""
+    def __init__(self, title, html_text, image_filename=None, parent=None):
         super(HelpDialog, self).__init__(parent)
         self.setWindowTitle(title)
         self.setMinimumSize(400, 300)
+        self.setWindowFlags(QtCore.Qt.Window | QtCore.Qt.WindowStaysOnTopHint)
         
         layout = QtWidgets.QVBoxLayout(self)
-        browser = QtWidgets.QTextBrowser()
-        browser.setHtml(text)
-        layout.addWidget(browser)
-        
-        btn = QtWidgets.QPushButton("Понятно")
-        btn.clicked.connect(self.accept)
-        layout.addWidget(btn)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+
+        # БЛОК ИЗОБРАЖЕНИЯ ИЛИ GIF
+        if image_filename:
+            # Путь к данным: FD_FishTool/data/help/
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+            img_path = os.path.normpath(os.path.join(current_dir, "..", "data", "help", image_filename))
+
+            if os.path.exists(img_path):
+                img_label = QtWidgets.QLabel()
+                img_label.setAlignment(QtCore.Qt.AlignCenter)
+                
+                if img_path.lower().endswith('.gif'):
+                    self.movie = QtGui.QMovie(img_path)
+                    img_label.setMovie(self.movie)
+                    self.movie.start()
+                else:
+                    pixmap = QtGui.QPixmap(img_path)
+                    pixmap = pixmap.scaled(600, 600, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+                    img_label.setPixmap(pixmap)
+                layout.addWidget(img_label)
+
+        # БЛОК ТЕКСТА
+        text_label = QtWidgets.QLabel(html_text)
+        text_label.setWordWrap(True)
+        text_label.setStyleSheet("font-size: 10pt;")
+        layout.addWidget(text_label)
+
+        btn_close = QtWidgets.QPushButton("Понятно")
+        btn_close.setFixedHeight(35)
+        btn_close.clicked.connect(self.accept)
+        layout.addWidget(btn_close)
 
 class HelpManager:
     """Централизованное хранилище справок для всего инструмента."""
+
+    @staticmethod
+    def show_stage_skin_help(parent=None):
+        title = "Справка | Staged Skinning"
+        text = """
+        <b>Поэтапный скиннинг (Staged Skinning)</b><br><br>
+        Инструмент позволяет разбить скиннинг рыбы на этапы:
+        <ol>
+            <li><b>Body</b> — основная масса.</li>
+            <li><b>Side Fins</b> — боковые плавники.</li>
+            <li><b>Vert Fins</b> — верхние/нижние плавники.</li>
+        </ol>
+        """
+        HelpDialog(title, text, parent=parent).exec_()
+
+    @staticmethod
+    def show_skin_anim_help(parent=None):
+        title = "Справка | Skin Animations"
+        text = """
+        <b>Тестовые анимации</b><br><br>
+        Проверка деформаций меша в крайних позах через загрузку <i>body_test_anim.json</i>.
+        """
+        HelpDialog(title, text, parent=parent).exec_()
     
     @staticmethod
     def show_studio_library_help(parent=None):

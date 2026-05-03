@@ -204,7 +204,7 @@ class RigBodyWidget(QtWidgets.QWidget):
         accordions = [
             'btn_model_prepare', 'btn_bones_controls', 'btn_skinning', 
             'btn_stage_skin', 'btn_skin_animation', 'pushButton_16', # pushButton_16 это кнопка SkinMagic
-            'btn_reskin', 'btn_clean_up'
+            'btn_reskin'
         ]
         for btn_name in accordions:
             if hasattr(self.ui, btn_name):
@@ -217,20 +217,7 @@ class RigBodyWidget(QtWidgets.QWidget):
         # Запускаем слушатель выделения для списков весов
         self._setup_weight_ui_events()
 
-        # 6. Встраиваем кастомные слайдеры (AnimBot / EasyEase) вниз окна
-        '''self.blender_ui = WeightBlenderWidget(self.manager, lambda: self.mesh_combo.currentText())
-        slider_group = QtWidgets.QGroupBox("Interactive Curve Control")
-        vl = QtWidgets.QVBoxLayout(slider_group)
-        vl.addWidget(self.blender_ui)
-        main_layout.addWidget(slider_group)
-
-        self.ease_ui = EasyEaseWidget(self.manager, lambda: self.mesh_combo.currentText())
-        ease_group = QtWidgets.QGroupBox("Easy Ease Control (test version 1.0)")
-        vl2 = QtWidgets.QVBoxLayout(ease_group)
-        vl2.addWidget(self.ease_ui)
-        main_layout.addWidget(ease_group)'''
-
-    
+           
 
     def refresh_mesh_list(self):
         if hasattr(self, 'mesh_combo'):
@@ -309,21 +296,19 @@ class RigBodyWidget(QtWidgets.QWidget):
                 lambda *args: self.manager.add_to_skin_logic(3, self.mesh_combo.currentText())
             )
         
-        # Staged Skinning info
-        if hasattr(self.ui, 'btn_info_stage_skin'): # Бывшая pushButton_18
-            self.ui.btn_info_stage_skin.clicked.connect(self._show_stage_skin_help)
+        # ОБНОВЛЕННЫЕ КОННЕКТЫ СПРАВКИ
+        from FD_FishTool.ui.help_manager import HelpManager
+        if hasattr(self.ui, 'btn_info_stage_skin'):
+            self.ui.btn_info_stage_skin.clicked.connect(lambda: HelpManager.show_stage_skin_help(self))
+        if hasattr(self.ui, 'btn_info_skin_animation'):
+            self.ui.btn_info_skin_animation.clicked.connect(lambda: HelpManager.show_skin_anim_help(self))
+        
 
         # --- Блок: Adaptive Gradient ---
         if hasattr(self.ui, 'btn_Apply_adaptive_gradient'):
             self.ui.btn_Apply_adaptive_gradient.clicked.connect(
                 lambda *args: self.manager.apply_topological_gradient(self.mesh_combo.currentText())
-            )
-
-        # --- Блок: Clean Up (Weight Utilities) ---
-        if hasattr(self.ui, 'btn_clean_weightless_bones'):
-            self.ui.btn_clean_weightless_bones.clicked.connect(
-                lambda *args: self.manager.clean_weightless_bones(self.mesh_combo.currentText())
-            )
+            )        
 
         # --- Блок: Test Animations ---
         if hasattr(self.ui, 'btn_body_test_anim'): # Бывшая pushButton_2
@@ -341,8 +326,7 @@ class RigBodyWidget(QtWidgets.QWidget):
                 lambda *args: self.manager.delete_all_test_animation()
             )
         
-        if hasattr(self.ui, 'btn_info_skin_animation'): # Бывшая pushButton_20
-            self.ui.btn_info_skin_animation.clicked.connect(self._show_skin_anim_help)
+       
 
     def _get_mesh_from_sel(self, *args):
         """Берет выделенный во вьюпорте меш и делает его активным в ComboBox."""
@@ -423,15 +407,7 @@ class RigBodyWidget(QtWidgets.QWidget):
             'wave_button': SkinMagicCore.wave_selection,
             'copyWeight_button': SkinMagicCore.copy_weight,
             'import_button': SkinMagicCore.import_vtx_weight,
-            'export_button': SkinMagicCore.export_vtx_weight,
-            
-            # Кнопки Clean Up из нижней части интерфейса
-            'misc_runButton': SkinMagicCore.remove_unknown_nodes,
-            'misc_runButton_6': SkinMagicCore.clean_custom_attrs,
-            'misc_runButton_3': SkinMagicCore.mesh_cleanup,
-            'misc_runButton_5': SkinMagicCore.clean_weightless_bones,
-            'misc_runButton_7': SkinMagicCore.delete_non_skin_history,
-            'misc_runButton_8': SkinMagicCore.build_weight_map,
+            'export_button': SkinMagicCore.export_vtx_weight,         
             
             'weightBone_button': SkinMagicCore.select_weighted_bone,
             'InfVerts_button': SkinMagicCore.select_weighted_verts
