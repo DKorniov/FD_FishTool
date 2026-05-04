@@ -30,8 +30,8 @@ def onMayaDroppedPythonFile(*args):
         return
 
     # 3. Формируем команду запуска
-    # Команда добавляет путь к инструменту в sys.path и запускает main_app
-    run_command = f'''
+    # Команда добавляет путь к инструменту в sys.path, чистит кэш и запускает main_app
+    run_command = f'''\
 import sys
 import os
 
@@ -40,15 +40,19 @@ path = r"{os.path.dirname(tool_dir)}"
 if path not in sys.path:
     sys.path.append(path)
 
+# 1. Принудительно удаляем все модули инструмента из кэша Python в Maya
+for mod in list(sys.modules.keys()):
+    if mod.startswith("{tool_folder_name}"):
+        del sys.modules[mod]
+
+# 2. Теперь импортируем "с чистого листа"
 try:
-    import FD_FishTool.main_app as main_app
-    import importlib
-    importlib.reload(main_app)
+    import {tool_folder_name}.main_app as main_app
     main_app.run()
 except ImportError as e:
     import maya.cmds as cmds
-    cmds.warning("Убедитесь, что корневая папка инструмента называется 'FD_FishTool'.")
-    cmds.error(f"FD_FishTool: Ошибка импорта инструмента. {{e}}")
+    cmds.warning("Убедитесь, что корневая папка инструмента называется '{tool_folder_name}'.")
+    cmds.error(f"{tool_folder_name}: Ошибка импорта инструмента. {{e}}")
 '''
 
     # 4. Поиск иконки (согласно манифесту)
@@ -69,14 +73,8 @@ except ImportError as e:
         image=icon_path,
         label='FishTool',
         imageOverlayLabel='', # Текст поверх иконки
-        overlayLabelColor=(1, 0.6, 0), # Оранжевый текст (как в манифесте)
-        overlayLabelBackColor=(0, 0, 0, 0.4)
+        overlayLabelColor=(1, 0.6, 0),
+        overlayLabelBackColor=(0, 0, 0, 0.5)
     )
 
-    # 6. Уведомление
-    cmds.confirmDialog(
-        title='Установка завершена',
-        message=f'Кнопка FD_FishTool успешно добавлена на полку "{current_shelf}".',
-        button=['OK']
-    )
-    print(f"FD_FishTool: Кнопка создана с иконкой: {icon_path}")
+    cmds.inViewMessage(amg=f"Кнопка <hl>FD_FishTool</hl> успешно добавлена на полку <hl>{current_shelf}</hl>.", pos='midCenter', fade=True)

@@ -5,7 +5,7 @@ import importlib
 from PySide2 import QtWidgets, QtCore, QtGui, QtUiTools
 import maya.cmds as cmds
 import json
-
+import FD_FishTool
 
 # Импорты ядра
 from FD_FishTool.core.meta_exporter import BoneNamePreparing
@@ -33,7 +33,8 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         bone_map = self.cfg.load_json("bone_map.json")
         self.bone_preparer = BoneNamePreparing(bone_map)
         
-        self.setWindowTitle("FD_FishTool v2.1 | Rigging Master")
+        # Теперь версия подтягивается автоматически из FD_FishTool/__init__.py
+        self.setWindowTitle(f"FD_FishTool v{FD_FishTool.__version__} | Главное окно")
         self.setMinimumSize(500, 850)
         
         self.init_ui()
@@ -71,24 +72,7 @@ class FD_MainWindow(QtWidgets.QMainWindow):
         if hasattr(self.ui, 'btn_settings'):
             self.ui.btn_settings.clicked.connect(self.open_settings)
 
-    '''def init_ui(self):
-        central = QtWidgets.QWidget()
-        self.setCentralWidget(central)
-        layout = QtWidgets.QVBoxLayout(central)
-        
-        self.tabs = QtWidgets.QTabWidget()
-        layout.addWidget(self.tabs)
-
-        # Подключение вкладок (Animation и Export не тронуты)
-        self.tabs.addTab(self.ui_rigging_tab(), "Rigging")
-        self.tabs.addTab(self.ui_animation_tab(), "Animation")
-        self.tabs.addTab(self.ui_export_tab(), "Export")
-
-        # Настройки снизу
-        btn_settings = QtWidgets.QPushButton("⚙ Настройки Пайплайна")
-        btn_settings.setMinimumHeight(40)
-        btn_settings.clicked.connect(self.open_settings)
-        layout.addWidget(btn_settings)'''
+    
 
     def ui_rigging_tab(self):
         """Вкладка риггинга: Здесь мы работаем над телом и ИИ."""

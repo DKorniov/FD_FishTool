@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 from PySide2 import QtWidgets, QtCore, QtGui
+import FD_FishTool
 
 class SettingsWindow(QtWidgets.QDialog):
     def __init__(self, config_manager, parent=None):
@@ -75,6 +76,28 @@ class SettingsWindow(QtWidgets.QDialog):
         )
         info_label.setStyleSheet("color: #888; font-size: 10px;")
         main_layout.addWidget(info_label)
+
+        # --- БЛОК ИНФОРМАЦИИ О РАЗРАБОТЧИКЕ И ВЕРСИИ ---
+        about_frame = QtWidgets.QFrame()
+        about_frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        about_frame.setFrameShadow(QtWidgets.QFrame.Sunken)
+        
+        about_layout = QtWidgets.QHBoxLayout(about_frame)
+        about_layout.setContentsMargins(10, 5, 10, 5)
+        
+        # Динамически подтягиваем данные из __init__.py
+        dev_label = QtWidgets.QLabel(f"<b>Developer:</b> {FD_FishTool.__author__}")
+        dev_label.setStyleSheet("color: #999; font-size: 11px;")
+        
+        version_label = QtWidgets.QLabel(f"<b>Version:</b> {FD_FishTool.__version__}")
+        version_label.setStyleSheet("color: #999; font-size: 11px;")
+        
+        about_layout.addWidget(dev_label)
+        about_layout.addStretch()
+        about_layout.addWidget(version_label)
+        
+        main_layout.addWidget(about_frame)
+        # -----------------------------------------------
 
         # Кнопки управления
         btn_layout = QtWidgets.QHBoxLayout()
